@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Valerie Assistant
+GenericName=Personal AI Assistant
+Comment=Local AI assistant with voice, email, reminders, skills and workspaces
+Exec=valerie-assistant
+Icon=valerie-assistant
+Terminal=false
+Categories=Utility;Office;
+Keywords=assistant;ai;voice;email;reminders;
+StartupNotify=true

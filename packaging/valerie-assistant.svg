@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2F6B4F"/>
+      <stop offset="1" stop-color="#173D2C"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2C14E"/>
+      <stop offset="1" stop-color="#C98A1B"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="none" stroke="#E0A526" stroke-opacity=".55" stroke-width="5"/>
+  <!-- V monogram -->
+  <path d="M58 62 L104 62 L128 150 L152 62 L198 62 L148 196 L108 196 Z" fill="url(#gold)"/>
+  <!-- voice waves -->
+  <g fill="none" stroke="#F5E6C8" stroke-linecap="round" stroke-width="8">
+    <path d="M196 132 q14 18 0 36" opacity=".95"/>
+    <path d="M214 120 q24 30 0 60" opacity=".6"/>
+  </g>
+</svg>

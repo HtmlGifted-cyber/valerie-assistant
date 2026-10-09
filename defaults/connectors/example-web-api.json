@@ -1,0 +1,12 @@
+{
+  "name": "example-web-api",
+  "title": "Example web API (disabled)",
+  "description": "Template: edit the URLs, set an API key in Settings > Connectors, then enable.",
+  "type": "http",
+  "confirm_writes": true,
+  "enabled": false,
+  "actions": {
+    "status": {"method": "GET", "url": "https://example.com/api/status?key={secret}"},
+    "send": {"method": "POST", "url": "https://example.com/api/send", "body": {"key": "{secret}", "message": "{message}"}}
+  }
+}

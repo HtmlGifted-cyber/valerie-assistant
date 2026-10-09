@@ -1,0 +1,12 @@
+{
+  "name": "example-task-board",
+  "title": "Example task board (disabled)",
+  "description": "Template for a task board behind a small web bridge (GET returns rows, POST adds one).",
+  "type": "php_board",
+  "url": "https://example.com/bridge.php",
+  "columns": ["Timestamp", "From", "To", "Message", "Priority", "Status", "Completed Y/N"],
+  "defaults": {"From": "Valerie", "Priority": "Normal", "Status": "Unread"},
+  "inbox_to": ["Valerie", "Me"],
+  "confirm_writes": true,
+  "enabled": false
+}

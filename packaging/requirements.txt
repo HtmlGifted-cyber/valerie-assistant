@@ -1,0 +1,20 @@
+# Installed one by one by the setup wizard (a failure only affects its own feature).
+# pip itself is upgraded first - old pip can't use modern pre-built wheels.
+requests
+psutil
+python-dateutil
+numpy<1.25; python_version < "3.9"
+numpy; python_version >= "3.9"
+sounddevice
+# Speech recognition. Python 3.8 (Ubuntu 20.04) gets versions that still ship pre-built wheels.
+onnxruntime<1.20; python_version < "3.9"
+onnxruntime; python_version >= "3.9"
+tokenizers<0.21; python_version < "3.9"
+av<13; python_version < "3.9"
+ctranslate2<4.6; python_version < "3.9"
+faster-whisper==1.1.0; python_version < "3.9"
+faster-whisper; python_version >= "3.9"
+apscheduler
+# Optional cloud brains (only used if you add an API key in Settings)
+anthropic<1; python_version < "3.10"
+anthropic; python_version >= "3.10"
