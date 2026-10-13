@@ -14,6 +14,8 @@ Built and maintained by Jeremy A. Henry ([@HtmlGifted-cyber](https://github.com/
 - **Daily report.** Point her at a folder that receives a dated `Ecosystem-Report_YYYY-MM-DD.txt`. She reads it when you say "good morning" and won't treat an old one as today's news.
 - **TV control.** Roku TVs on your network: "mute the TV", "put on YouTube on the TV", "TV volume up 3".
 - **Skills, knowledge and connectors.** Reusable prompt skills, searchable knowledge folders, plug-in connectors for task boards and web APIs, web search and a file finder.
+- **Phone and browser chat.** `valerie-web` serves a PIN-protected chat page on your home network (works without the desktop window). You see what she's doing while she thinks, and which tools she used.
+- **Home network guardian.** "Why is my internet slow?" runs a real speed test and shows what's using the connection. "Am I hacked?" checks new listening ports, remote logins, failed logins, new startup programs and unknown devices against your saved normal baseline.
 - **VA playbook.** A built-in guide to tone, pushback and reply style, so she acts like a good assistant rather than a chatbot.
 
 ## Install (Debian / Ubuntu)

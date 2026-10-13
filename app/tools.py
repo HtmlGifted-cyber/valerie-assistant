@@ -191,6 +191,15 @@ TOOL_SCHEMAS = [
          "title": {"type": "string"},
          "text": {"type": "string"},
          "parent_folder_id": {"type": "string", "description": "Optional Drive folder ID."}}, ["title"])},
+    {"name": "network_check",
+     "description": "Check the home internet and network: speed test (download/upload/ping), what the laptop is using right now, busiest programs, Wi-Fi signal, devices online. Use for 'why is my internet slow', 'test my speed', 'what's using my internet'.",
+     "parameters": _obj({"speed_test": {"type": "boolean", "description": "Run the ~12 MB speed test (default true)."}})},
+    {"name": "security_check",
+     "description": "Intrusion check: new listening ports, remote logins, failed logins, new startup programs, unknown devices, compared with the saved normal baseline. Use for 'am I hacked', 'security check', 'is anyone in my laptop'.",
+     "parameters": _obj()},
+    {"name": "security_accept",
+     "description": "Only when the owner says the current setup is fine: save the current ports and startup items as the new normal baseline.",
+     "parameters": _obj()},
 ]
 
 
@@ -510,6 +519,15 @@ def execute_tool(name, args, update_chat=None):
         elif name == "doc_create":
             res = _connector(cfg).create_doc(args["title"], args.get("text", ""), args.get("parent_folder_id"))
             result = f"Doc created: {res}"
+        elif name == "network_check":
+            import va_network
+            result = va_network.network_check(args.get("speed_test", True))
+        elif name == "security_check":
+            import va_network
+            result = va_network.security_check()
+        elif name == "security_accept":
+            import va_network
+            result = va_network.accept_baseline()
         else:
             result = f"Unknown tool '{name}' - refusing to run it."
 
