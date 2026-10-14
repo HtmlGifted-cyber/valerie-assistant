@@ -25,6 +25,10 @@ Everything stays on your computer. The extension talks only to `http://127.0.0.1
 - Research for school or work: save sources, then ask Valerie what they say.
 - Quick questions about the page you are on, without copying and pasting.
 
+## Site access (asked once per site)
+
+The first time you use a button on a website, Chrome asks **"Allow Valerie to read this site?"** Click **Allow** and Valerie can read that site whenever *you* press a button; she never reads pages on her own. To see or remove sites later: `chrome://extensions` -> Valerie -> **Details** -> **Site access**. Chrome never lets extensions read its own pages (settings, the Web Store).
+
 ## Install
 
 You need Valerie (the desktop app or `valerie-web`) installed on this computer, and Google Chrome (version 116 or newer).

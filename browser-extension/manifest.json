@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Valerie",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Ask your own local Valerie assistant about the page you are reading. Works only with the Valerie running on this computer.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -34,5 +34,9 @@
   ],
   "host_permissions": [
     "http://127.0.0.1:8790/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
   ]
 }

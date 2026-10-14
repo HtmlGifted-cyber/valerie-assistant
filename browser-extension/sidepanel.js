@@ -96,11 +96,19 @@ async function grabPage() {
   if (!/^https?:\/\//i.test(tab.url || "")) {
     throw new Error("Valerie can only read normal web pages (http or https), not browser pages.");
   }
+  // Ask once per site: Chrome shows "Allow Valerie to read <site>?" and remembers the answer.
+  // (Revoke any time in chrome://extensions -> Valerie -> Details -> Site access.)
+  const origin = new URL(tab.url).origin + "/*";
+  if (!(await chrome.permissions.contains({ origins: [origin] }))) {
+    let granted = false;
+    try { granted = await chrome.permissions.request({ origins: [origin] }); } catch (e) { granted = false; }
+    if (!granted) throw new Error("Valerie needs your OK to read this site. Press the button again and choose Allow.");
+  }
   let results;
   try {
     results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: pageGrab });
   } catch (e) {
-    throw new Error("Valerie can't read this page yet. Click the Valerie icon while on the page, then try again.");
+    throw new Error("Valerie can't read this page (Chrome blocks some pages, like the Web Store). Try another page.");
   }
   const page = results && results[0] && results[0].result;
   if (!page) throw new Error("Valerie couldn't read this page.");
