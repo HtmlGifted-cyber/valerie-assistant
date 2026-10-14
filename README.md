@@ -8,6 +8,9 @@ Built and maintained by Jeremy A. Henry ([@HtmlGifted-cyber](https://github.com/
 
 - **Local AI chat.** Uses [Ollama](https://ollama.com) (default model `qwen2.5:3b`) on your own machine. Claude, ChatGPT or Gemini are optional with your own key.
 - **Free online brain with offline fallback (new).** Point her at a local [OmniRoute](https://github.com/diegosouzapw/OmniRoute) router and she uses free models such as Google Gemini, chaining to the next provider when one hits its limit, and back to Ollama when you're offline. See [docs/OMNIROUTE.md](docs/OMNIROUTE.md).
+- **Ask your documents (new, offline).** She indexes the folders you choose (PDF, Word, Excel, notes) with a local embedding model and answers from your own files, citing the file. See [docs/OFFLINE-FEATURES.md](docs/OFFLINE-FEATURES.md).
+- **Offline library (new).** Offline Wikipedia, medical and repair guides via Kiwix, so she can still look things up with no internet at all.
+- **Local cameras (new).** Finds USB and network cameras, takes snapshots and watches for motion with desktop alerts. No cloud, pictures stay on your computer.
 - **Works with Claude.** Use Claude as her brain, let her "ask Claude" for hard questions through Claude Code, or have Claude Code install her for you with one prompt. See [docs/CLAUDE.md](docs/CLAUDE.md).
 - **Workspaces kept separate.** Each one has its own mailbox, task board, memory, knowledge and time zone, and they never mix.
 - **Email.** Works through IMAP/SMTP or Thunderbird. She reads your mail and drafts replies; nothing is sent without your approval.
@@ -53,7 +56,7 @@ Feature ideas and pull requests are welcome.
 |---|---|
 | `app/` | The assistant (Tk GUI, AI brain, tools, mail, voice, scheduler, connectors) |
 | `defaults/` | Starter skills, knowledge (getting started and the VA playbook) and example connectors |
-| `docs/` | Setup guides: [OmniRoute](docs/OMNIROUTE.md), [Claude](docs/CLAUDE.md) |
+| `docs/` | Setup guides: [OmniRoute](docs/OMNIROUTE.md), [Claude](docs/CLAUDE.md), [offline features](docs/OFFLINE-FEATURES.md) |
 | `packaging/` | `build.sh` (makes the .deb), setup wizard, launcher, desktop entry, icon |
 
 ## Your data stays yours

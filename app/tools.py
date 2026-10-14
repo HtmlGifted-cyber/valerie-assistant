@@ -200,6 +200,24 @@ TOOL_SCHEMAS = [
     {"name": "security_accept",
      "description": "Only when the owner says the current setup is fine: save the current ports and startup items as the new normal baseline.",
      "parameters": _obj()},
+    {"name": "docs_search",
+     "description": "Search the owner's own files (PDFs, Word, spreadsheets, notes in the folders they chose) by meaning and return matching passages with file paths. Use for 'what did my notes/report/file say about...', 'find the document about...'.",
+     "parameters": _obj({"query": {"type": "string"}, "k": {"type": "integer", "description": "How many passages (default 5)."}}, ["query"])},
+    {"name": "docs_manage",
+     "description": "Manage the document memory: action 'status' (what's indexed), 'index' (re-read changed files), 'add' or 'remove' a folder path.",
+     "parameters": _obj({"action": {"type": "string", "enum": ["status", "index", "add", "remove"]}, "path": {"type": "string"}}, ["action"])},
+    {"name": "library_search",
+     "description": "Look something up in the OFFLINE library (offline Wikipedia, medical and repair guides) - works with no internet. Use for general knowledge, how-to, first aid, repairs when offline or when asked to 'look it up offline'.",
+     "parameters": _obj({"query": {"type": "string"}}, ["query"])},
+    {"name": "library_read",
+     "description": "Read an article from the offline library by its URL (from library_search) or title.",
+     "parameters": _obj({"article": {"type": "string"}}, ["article"])},
+    {"name": "library_manage",
+     "description": "Offline library: action 'status' or 'packs' (list downloadable packs with sizes). Downloads are done by the owner, not by you.",
+     "parameters": _obj({"action": {"type": "string", "enum": ["status", "packs"]}}, ["action"])},
+    {"name": "cameras",
+     "description": "Local cameras (no cloud): action 'status' (cameras and today's motion events), 'find' (look for cameras on the network/USB), 'snap' (take a picture now from camera `name`), 'motion' (check camera `name` for motion).",
+     "parameters": _obj({"action": {"type": "string", "enum": ["status", "find", "snap", "motion"]}, "name": {"type": "string"}}, ["action"])},
 ]
 
 
@@ -528,6 +546,29 @@ def execute_tool(name, args, update_chat=None):
         elif name == "security_accept":
             import va_network
             result = va_network.accept_baseline()
+        elif name == "docs_search":
+            import va_docs
+            result = va_docs.search_docs(args["query"], int(args.get("k") or 5))
+        elif name == "docs_manage":
+            import va_docs
+            act, path = args.get("action"), args.get("path", "")
+            result = {"status": lambda: va_docs.docs_status(), "index": lambda: va_docs.index_docs(),
+                      "add": lambda: va_docs.add_docs_folder(path) + " " + va_docs.index_docs(),
+                      "remove": lambda: va_docs.remove_docs_folder(path)}.get(act, lambda: "Unknown action.")()
+        elif name == "library_search":
+            import va_library
+            result = va_library.search_library(args["query"])
+        elif name == "library_read":
+            import va_library
+            result = va_library.read_article(args["article"])
+        elif name == "library_manage":
+            import va_library
+            result = va_library.list_packs() if args.get("action") == "packs" else va_library.library_status()
+        elif name == "cameras":
+            import va_cameras
+            act, cam = args.get("action"), args.get("name", "")
+            result = {"status": lambda: va_cameras.camera_status(), "find": lambda: va_cameras.find_cameras(),
+                      "snap": lambda: va_cameras.snapshot(cam), "motion": lambda: va_cameras.check_motion(cam)}.get(act, lambda: "Unknown action.")()
         else:
             result = f"Unknown tool '{name}' - refusing to run it."
 
