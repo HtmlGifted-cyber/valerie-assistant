@@ -359,7 +359,54 @@ def _run_gemini(prompt, cfg, update_chat, history, ecosystem=None):
     return "Reached the tool-call limit for this turn."
 
 
-PROVIDERS = {"anthropic": _run_anthropic, "openai": _run_openai, "gemini": _run_gemini}
+def _run_omniroute(prompt, cfg, update_chat, history, ecosystem=None):
+    """OpenAI-compatible call through the laptop's local OmniRoute router.
+    Falls back to local Ollama if OmniRoute is down or errors, so Valerie always answers."""
+    import os
+    o = cfg.get("omniroute", {})
+    base = o.get("base_url", "http://127.0.0.1:20128/v1").rstrip("/")
+    key_file = os.path.expanduser(o.get("key_file", "~/.omniroute/client.key"))
+    try:
+        key = open(key_file).read().strip()
+    except OSError:
+        return call_ollama(prompt, cfg, update_chat, history, ecosystem)
+    model = o.get("model", "ollama-local/qwen2.5:3b")
+    tools = [{"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["parameters"]}}
+             for t in enabled_schemas(cfg)]
+    messages = [{"role": "system", "content": build_system_prompt(cfg, prompt)}]
+    messages += _history_messages(history, cfg) + [{"role": "user", "content": build_user_turn(cfg, prompt, ecosystem)}]
+    headers = {"Authorization": "Bearer " + key}
+    try:
+        for _ in range(MAX_TOOL_TURNS):
+            body = {"model": model, "messages": messages}
+            if tools:
+                body["tools"] = tools
+            r = requests.post(base + "/chat/completions", json=body, headers=headers, timeout=int(o.get("timeout", 600)))
+            if r.status_code != 200:
+                raise requests.RequestException(f"HTTP {r.status_code}")
+            msg = r.json()["choices"][0]["message"]
+            calls = msg.get("tool_calls") or []
+            if not calls:
+                return (msg.get("content") or "").strip() or "No response."
+            messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
+            for call in calls:
+                fn = call.get("function", {}) or {}
+                try:
+                    args = _json.loads(fn.get("arguments") or "{}")
+                except ValueError:
+                    args = {}
+                if update_chat:
+                    update_chat("Valerie", f"(using {fn.get('name')}...)", speak=False)
+                messages.append({"role": "tool", "tool_call_id": call.get("id", ""),
+                                 "content": execute_tool(fn.get("name"), args, update_chat)})
+        return "Reached the tool-call limit for this turn."
+    except (requests.RequestException, ValueError, KeyError, IndexError):
+        if update_chat:
+            update_chat("Valerie", "(OmniRoute didn't answer, using my offline brain...)", speak=False)
+        return call_ollama(prompt, cfg, update_chat, history, ecosystem)
+
+
+PROVIDERS = {"anthropic": _run_anthropic, "openai": _run_openai, "gemini": _run_gemini, "omniroute": _run_omniroute}
 
 
 def run_agent_loop(provider, prompt, cfg=None, update_chat=None, history=None, ecosystem=None):

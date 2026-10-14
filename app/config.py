@@ -45,7 +45,7 @@ DEFAULT_CONFIG = {
     "setup_done": False,
     "owner": "",
 
-    # One of: "ollama", "anthropic", "openai", "gemini".
+    # One of: "ollama", "omniroute", "anthropic", "openai", "gemini".
     "active_provider": "ollama",
 
     # qwen2.5:3b - tool-calling capable and small enough for an ordinary
@@ -62,6 +62,11 @@ DEFAULT_CONFIG = {
     "anthropic": {"api_key": "", "model": "claude-opus-5-5"},
     "openai": {"api_key": "", "model": "gpt-4o"},
     "gemini": {"api_key": "", "model": "gemini-2.0-flash"},
+    # OmniRoute: a local router (https://github.com/diegosouzapw/OmniRoute) in front of free/own AI
+    # providers with automatic fallback. "model" can be one model ("gemini/gemini-3.8-flash") or a
+    # combo name you built in OmniRoute (e.g. "free-chain"). If OmniRoute is down, Valerie falls back to Ollama.
+    "omniroute": {"base_url": "http://127.0.0.1:20128/v1", "key_file": "~/.omniroute/client.key",
+                  "model": "free-chain", "timeout": 240},
 
     "assistant": {
         "name": "Valerie",

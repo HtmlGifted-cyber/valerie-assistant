@@ -7,6 +7,8 @@ Built and maintained by Jeremy A. Henry ([@HtmlGifted-cyber](https://github.com/
 ## What she does
 
 - **Local AI chat.** Uses [Ollama](https://ollama.com) (default model `qwen2.5:3b`) on your own machine. Claude, ChatGPT or Gemini are optional with your own key.
+- **Free online brain with offline fallback (new).** Point her at a local [OmniRoute](https://github.com/diegosouzapw/OmniRoute) router and she uses free models such as Google Gemini, chaining to the next provider when one hits its limit, and back to Ollama when you're offline. See [docs/OMNIROUTE.md](docs/OMNIROUTE.md).
+- **Works with Claude.** Use Claude as her brain, let her "ask Claude" for hard questions through Claude Code, or have Claude Code install her for you with one prompt. See [docs/CLAUDE.md](docs/CLAUDE.md).
 - **Workspaces kept separate.** Each one has its own mailbox, task board, memory, knowledge and time zone, and they never mix.
 - **Email.** Works through IMAP/SMTP or Thunderbird. She reads your mail and drafts replies; nothing is sent without your approval.
 - **Voice.** Read aloud, dictation, and a hands-free Talk mode with a wake word. Spoken briefings are natural sentences, not data read back.
@@ -32,12 +34,26 @@ Then open **Valerie Assistant** from your menu. The first launch runs a setup wi
 
 **Requirements:** Ubuntu 20.04 or newer (or another Debian-based system), Python 3.8+, x86_64 or ARM64, 6 GB RAM recommended, about 3 GB free disk.
 
+## Quick setup with an AI coding assistant
+
+Using Claude Code, Codex or a similar assistant? Paste the setup prompt from [docs/CLAUDE.md](docs/CLAUDE.md#3-let-claude-code-install-and-set-up-valerie-for-you). It walks through install, Ollama, optional OmniRoute and a test, and stops for you at every sudo step and every password or key.
+
+## Help make her better
+
+Valerie is young and grows from real use. If something breaks, confuses you, or you wish she could do something, please [open an issue](https://github.com/HtmlGifted-cyber/valerie-assistant/issues) with:
+- what you asked or clicked, and what happened,
+- your OS version and which AI brain you use (Ollama / OmniRoute / Claude / ...),
+- the last lines of `~/.local/share/valerie-assistant/gui.log` (remove anything private).
+
+Feature ideas and pull requests are welcome.
+
 ## Project layout
 
 | Path | What's there |
 |---|---|
 | `app/` | The assistant (Tk GUI, AI brain, tools, mail, voice, scheduler, connectors) |
 | `defaults/` | Starter skills, knowledge (getting started and the VA playbook) and example connectors |
+| `docs/` | Setup guides: [OmniRoute](docs/OMNIROUTE.md), [Claude](docs/CLAUDE.md) |
 | `packaging/` | `build.sh` (makes the .deb), setup wizard, launcher, desktop entry, icon |
 
 ## Your data stays yours

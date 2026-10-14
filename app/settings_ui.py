@@ -168,7 +168,7 @@ class SettingsWindow:
         _section(f, "AI brain", "Ollama runs on this laptop for free. The cloud options need your own API key (Calendar & Cloud page).")
         prov = tk.StringVar(value=c.get("active_provider", "ollama"))
         row = tk.Frame(f, bg=BG); row.pack(anchor="w")
-        for val, lab in [("ollama", "Local (Ollama)"), ("anthropic", "Claude"), ("openai", "ChatGPT"), ("gemini", "Gemini")]:
+        for val, lab in [("ollama", "Local (Ollama)"), ("omniroute", "OmniRoute (free models)"), ("anthropic", "Claude"), ("openai", "ChatGPT"), ("gemini", "Gemini")]:
             tk.Radiobutton(row, text=lab, value=val, variable=prov, bg=BG, font=(FONT, 9)).pack(side=tk.LEFT, padx=(0, 10))
         _label(f, "Local model (tool-calling: qwen2.5:3b, qwen2.5:1.5b = faster, qwen2.5:7b = smarter)", 8, fg=MUTED).pack(anchor="w", pady=(6, 0))
         model = tk.Entry(f, width=24); model.insert(0, c.get("ollama", {}).get("model", "qwen2.5:3b")); model.pack(anchor="w")
