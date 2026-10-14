@@ -218,6 +218,12 @@ TOOL_SCHEMAS = [
     {"name": "cameras",
      "description": "Local cameras (no cloud): action 'status' (cameras and today's motion events), 'find' (look for cameras on the network/USB), 'snap' (take a picture now from camera `name`), 'motion' (check camera `name` for motion).",
      "parameters": _obj({"action": {"type": "string", "enum": ["status", "find", "snap", "motion"]}, "name": {"type": "string"}}, ["action"])},
+    {"name": "notify_owner",
+     "description": "Send the owner a short message (phone via ntfy if set up, else a desktop pop-up). Use when a task finished or something needs their attention and they may be away. Never include passwords or keys.",
+     "parameters": _obj({"message": {"type": "string"}, "urgent": {"type": "boolean"}}, ["message"])},
+    {"name": "ask_owner",
+     "description": "Ask the owner a question on their phone with up to 3 tap-buttons (default Yes/No) and wait for the answer. Use when blocked on a decision or approval while they're away. Needs phone alerts (ntfy) set up.",
+     "parameters": _obj({"question": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}, "timeout_min": {"type": "integer"}}, ["question"])},
 ]
 
 
@@ -564,6 +570,13 @@ def execute_tool(name, args, update_chat=None):
         elif name == "library_manage":
             import va_library
             result = va_library.list_packs() if args.get("action") == "packs" else va_library.library_status()
+        elif name == "notify_owner":
+            import va_notify
+            result = va_notify.notify("Valerie", args["message"], urgent=bool(args.get("urgent")))
+        elif name == "ask_owner":
+            import va_notify
+            opts = tuple(args.get("options") or ("Yes", "No"))[:3]
+            result = va_notify.ask_owner(args["question"], opts, int(args.get("timeout_min") or 30))
         elif name == "cameras":
             import va_cameras
             act, cam = args.get("action"), args.get("name", "")

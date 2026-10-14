@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valerie</title>
+<link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+<header>
+  <b>Valerie</b>
+  <button id="settings" class="link" type="button">Options</button>
+</header>
+
+<div id="actions">
+  <button type="button" id="btn-ask">Ask about this page</button>
+  <button type="button" id="btn-summarize">Summarize page</button>
+  <button type="button" id="btn-explain">Explain selection</button>
+  <button type="button" id="btn-save">Save page to my memory</button>
+  <button type="button" id="btn-open">Open a site</button>
+</div>
+
+<div id="openrow" class="hide">
+  <input id="sitetxt" type="text" placeholder="Web address, or words to search">
+  <button id="sitego" type="button">Go</button>
+</div>
+
+<div id="log" aria-live="polite"></div>
+<div id="status" class="hide"></div>
+
+<form id="form">
+  <textarea id="txt" rows="2" placeholder="Ask Valerie something..."></textarea>
+  <button id="send" type="submit">Send</button>
+</form>
+
+<script src="sidepanel.js"></script>
+</body>
+</html>

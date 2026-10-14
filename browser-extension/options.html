@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valerie - Options</title>
+<style>
+body {
+  background: #f6f1e7;
+  color: #2a2620;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 15px;
+  margin: 0;
+}
+header { background: #2f5d46; color: #fff; padding: 14px 20px; }
+header b { font-size: 20px; }
+main { max-width: 640px; margin: 20px auto; padding: 0 16px; }
+.card { background: #fff; border: 1px solid #e3d8c4; border-radius: 8px; padding: 18px; margin-bottom: 16px; }
+label { display: block; font-weight: bold; margin-top: 12px; }
+input[type=text], input[type=password] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px;
+  margin-top: 6px;
+  border: 1px solid #e3d8c4;
+  border-radius: 6px;
+  font-size: 15px;
+  font-family: inherit;
+}
+.hint { font-size: 13px; color: #6b6358; margin: 6px 0 0; }
+.buttons { margin-top: 16px; display: flex; gap: 8px; }
+button {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: #2f5d46;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+button.alt { background: #c98a1b; }
+#status { margin-top: 12px; font-size: 14px; min-height: 20px; }
+.ok { color: #2f5d46; }
+.bad { color: #8b4a2b; }
+.warn { color: #8b4a2b; font-size: 13px; margin-top: 6px; display: none; }
+ol { padding-left: 20px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header><b>Valerie</b> - Options</header>
+<main>
+
+<div class="card">
+  <h3 style="margin-top:0">Connection</h3>
+  <label for="server">Valerie server address</label>
+  <input id="server" type="text" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:8790">
+  <p class="hint">Keep this as http://127.0.0.1:8790 unless you changed Valerie's web port. This extension is only allowed to talk to http://127.0.0.1:8790.</p>
+  <p id="portwarn" class="warn">Chrome only lets this extension reach http://127.0.0.1:8790. Other addresses will fail until the extension's manifest is changed.</p>
+
+  <label for="token">Pairing token</label>
+  <input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="Paste the 32-character token here">
+  <p class="hint">Get it on the computer running Valerie: <code>venv/bin/python app/valerie_web.py pair-extension</code> (run from the Valerie folder). Stored only in this browser.</p>
+
+  <div class="buttons">
+    <button id="save" type="button">Save</button>
+    <button id="test" type="button" class="alt">Test connection</button>
+  </div>
+  <p id="status"></p>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Privacy</h3>
+  <ol>
+    <li>The extension reads a web page only when you click one of its buttons or a menu item.</li>
+    <li>Page text is sent to your own Valerie on this computer. It is labeled as information only, never as instructions.</li>
+    <li>Nothing is clicked, typed or filled in on web pages.</li>
+    <li>It works only with your own Valerie. It does not send anything to a company or a cloud service of its own.</li>
+  </ol>
+</div>
+
+</main>
+<script src="options.js"></script>
+</body>
+</html>

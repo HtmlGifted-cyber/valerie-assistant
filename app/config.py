@@ -65,6 +65,8 @@ DEFAULT_CONFIG = {
     # OmniRoute: a local router (https://github.com/diegosouzapw/OmniRoute) in front of free/own AI
     # providers with automatic fallback. "model" can be one model ("gemini/gemini-3.8-flash") or a
     # combo name you built in OmniRoute (e.g. "free-chain"). If OmniRoute is down, Valerie falls back to Ollama.
+    # How Valerie reaches the owner when away: "ntfy" (free phone push, see va_notify.py setup), "desktop" or "none".
+    "notify": {"method": "desktop", "ntfy_server": "https://ntfy.sh"},
     "omniroute": {"base_url": "http://127.0.0.1:20128/v1", "key_file": "~/.omniroute/client.key",
                   "model": "free-chain", "timeout": 240},
 

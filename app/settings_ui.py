@@ -173,6 +173,14 @@ class SettingsWindow:
         _label(f, "Local model (tool-calling: qwen2.5:3b, qwen2.5:1.5b = faster, qwen2.5:7b = smarter)", 8, fg=MUTED).pack(anchor="w", pady=(6, 0))
         model = tk.Entry(f, width=24); model.insert(0, c.get("ollama", {}).get("model", "qwen2.5:3b")); model.pack(anchor="w")
 
+        _section(f, "How Valerie reaches you when you're away",
+                 "Phone (ntfy): free push alerts and Yes/No questions on your phone - run 'venv/bin/python app/va_notify.py setup ntfy' once for your private channel. Desktop: pop-ups on this computer only. Off: no alerts.")
+        ncfg = c.get("notify", {})
+        notify_v = tk.StringVar(value=ncfg.get("method", "desktop"))
+        row = tk.Frame(f, bg=BG); row.pack(anchor="w")
+        for val, lab in [("ntfy", "Phone (ntfy, free)"), ("desktop", "Desktop pop-ups"), ("none", "Off")]:
+            tk.Radiobutton(row, text=lab, value=val, variable=notify_v, bg=BG, font=(FONT, 9)).pack(side=tk.LEFT, padx=(0, 10))
+
         _section(f, "Custom instructions", "Who Valerie is and how she should work - like Custom Instructions in ChatGPT/Claude.")
         persona = tk.Text(f, height=7, width=70, wrap=tk.WORD, font=(FONT, 9))
         persona.insert("1.0", c.get("assistant", {}).get("persona", ""))
@@ -204,6 +212,7 @@ class SettingsWindow:
 
         def collect():
             c["active_provider"] = prov.get()
+            c.setdefault("notify", {})["method"] = notify_v.get()
             c.setdefault("ollama", {})["model"] = model.get().strip() or "qwen2.5:3b"
             c.setdefault("assistant", {})["persona"] = persona.get("1.0", "end").strip()
             c["assistant"]["speak_replies"] = speak.get()
