@@ -13,6 +13,7 @@ Built and maintained by Jeremy A. Henry ([@HtmlGifted-cyber](https://github.com/
 - **Local cameras (new).** Finds USB and network cameras, takes snapshots and watches for motion with desktop alerts. No cloud, pictures stay on your computer.
 - **Reaches you when you're away (new).** Free phone alerts and Yes/No questions through the ntfy app, so she can ask "send the weekly report?" and wait for your tap. See *Reaching you when you're away* below.
 - **Chrome extension (new).** A Valerie side panel in Chrome: ask about the page, summarize, explain a selection, save pages to her memory. See [browser-extension/README.md](browser-extension/README.md).
+- **Specialists (new).** Hand a job to an expert profile (SEO, email strategy, security review and more) and get its answer, run on your own AI. Works with Markdown agent packs such as agency-agents. See [docs/SPECIALISTS.md](docs/SPECIALISTS.md).
 - **Works with Claude.** Use Claude as her brain, let her "ask Claude" for hard questions through Claude Code, or have Claude Code install her for you with one prompt. See [docs/CLAUDE.md](docs/CLAUDE.md).
 - **Workspaces kept separate.** Each one has its own mailbox, task board, memory, knowledge and time zone, and they never mix.
 - **Email.** Works through IMAP/SMTP or Thunderbird. She reads your mail and drafts replies; nothing is sent without your approval.

@@ -224,6 +224,12 @@ TOOL_SCHEMAS = [
     {"name": "ask_owner",
      "description": "Ask the owner a question on their phone with up to 3 tap-buttons (default Yes/No) and wait for the answer. Use when blocked on a decision or approval while they're away. Needs phone alerts (ntfy) set up.",
      "parameters": _obj({"question": {"type": "string"}, "options": {"type": "array", "items": {"type": "string"}}, "timeout_min": {"type": "integer"}}, ["question"])},
+    {"name": "find_specialist",
+     "description": "Find an expert specialist (e.g. SEO, sales email, security review, lesson planning, game design) among the installed specialist profiles. Returns names to use with use_specialist.",
+     "parameters": _obj({"query": {"type": "string"}}, ["query"])},
+    {"name": "use_specialist",
+     "description": "Hand a task to a named specialist (or a topic) and get its expert answer. Use for jobs needing expertise beyond general chat.",
+     "parameters": _obj({"specialist": {"type": "string"}, "task": {"type": "string"}}, ["specialist", "task"])},
 ]
 
 
@@ -577,6 +583,12 @@ def execute_tool(name, args, update_chat=None):
             import va_notify
             opts = tuple(args.get("options") or ("Yes", "No"))[:3]
             result = va_notify.ask_owner(args["question"], opts, int(args.get("timeout_min") or 30))
+        elif name == "find_specialist":
+            import va_specialists
+            result = va_specialists.list_specialists(args.get("query", ""))
+        elif name == "use_specialist":
+            import va_specialists
+            result = va_specialists.run_specialist(args["specialist"], args["task"], cfg)
         elif name == "cameras":
             import va_cameras
             act, cam = args.get("action"), args.get("name", "")
