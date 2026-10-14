@@ -485,6 +485,13 @@ class ValerieAssistantGUI:
 
     def welcome_protocol(self):
         greeting = time_greeting()
+        try:   # home-system check from the local status collector, if installed (offline-safe)
+            import va_network
+            home = va_network.home_summary()
+            if home:
+                self.update_chat(self.bot_name, "Home system: " + home)
+        except Exception:
+            pass
         ids = self.ws_ids()
         if not ids:
             self.update_chat(self.bot_name, f"{greeting}{self.owner_suffix()}. Type /help to see what I can do, "

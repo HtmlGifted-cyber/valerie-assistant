@@ -12,6 +12,18 @@ GUARD = os.path.expanduser("~/.local/share/ecohub/guardian")  # shared with Ecos
 DASH_STATUS = "/var/www/html/eco/status.json"   # optional: Ecosystem Hub status file if present
 
 
+def home_summary(max_age=1800):
+    """One-line home-system summary from the status collector (works offline). None if missing or stale."""
+    try:
+        with open(DASH_STATUS) as f:
+            d = json.load(f)
+        if time.time() - d.get("generated", 0) > max_age or not d.get("summary"):
+            return None
+        return d["summary"].strip()
+    except Exception:
+        return None
+
+
 def _sh(cmd, timeout=20):
     try:
         return subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout).stdout.strip()
@@ -122,7 +134,11 @@ def security_check():
         p = line.split()
         if len(p) >= 5 and not re.match(r"(127\.|\[::1\]|::1)", p[4]):
             prog = re.search(r'"([^"]+)"', line)
-            ports.add(f"{p[0]} {p[4]} {prog.group(1) if prog else '?'}")
+            addr = re.sub(r"\[?fe80::[^\]%]*\]?(%[^:\s]+)?", "[fe80::]", p[4])   # link-local address changes each boot
+            port = addr.rsplit(":", 1)[-1]
+            if p[0] == "udp" and not prog and port.isdigit() and int(port) >= 32768:
+                addr = addr.rsplit(":", 1)[0] + ":random"   # system's random UDP port, new each boot
+            ports.add(f"{p[0]} {addr} {prog.group(1) if prog else '?'}")
     new, first = _baseline("ports", ports)
     facts.append(f"{len(ports)} programs are listening for network connections" +
                  (" (saved as your normal baseline)" if first else
