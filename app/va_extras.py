@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import zipfile
 
 import requests
@@ -181,46 +182,92 @@ def ask_claude(question, confirm=None, timeout=420):
 
 # ------------------------------------------------------------ free job
 
-def free_job(project, task, confirm=None):
+_PENDING_JOB = os.path.join(cfg_mod.DATA_DIR, "pending-free-job.json")
+_PENDING_MINUTES = 10
+
+
+def _free_job_check(project, task):
+    """Shared safety checks. Returns the cleaned project name; raises ExtraError otherwise."""
     projects_dir = os.path.join(HOME, "Projects")
     if not os.path.isdir(projects_dir):
         raise ExtraError("Projects directory does not exist.")
-
-    valid_projects = sorted(d for d in os.listdir(projects_dir) if os.path.isdir(os.path.join(projects_dir, d)))
-
-    if not project or "/" in project or "\\" in project or project in (".", "..") or project not in valid_projects:
-        raise ExtraError(f"Invalid or unknown project '{project}'. Available projects: {', '.join(valid_projects)}")
-
+    valid = sorted(d for d in os.listdir(projects_dir)
+                   if not d.startswith(".") and os.path.isdir(os.path.join(projects_dir, d)))
+    if not project or "/" in project or "\\" in project or project in (".", "..") or project not in valid:
+        raise ExtraError(f"Invalid or unknown project '{project}'. Available projects: {', '.join(valid)}")
     if not task or not isinstance(task, str):
         raise ExtraError("Task must be a non-empty string.")
-
     if len(task) > 2000:
         raise ExtraError("Task description is too long (max 2000 characters).")
-
-    # Check if a free job is already running
-    try:
-        p = subprocess.run(["pgrep", "-f", "claude-free"], capture_output=True, text=True)
-        if p.returncode == 0 and p.stdout.strip():
-            raise ExtraError("A free job is already running.")
-    except Exception as e:
-        if isinstance(e, ExtraError):
-            raise
-        # Ignore pgrep errors if any, or handle gracefully
-
-    _approve(confirm, "Start Free Job?", f"This will start a free background job on project '{project}' with task:\n\n{task[:1200]}")
-
-    free_job_script = shutil.which("free-job") or os.path.join(HOME, ".local", "bin", "free-job")
-    if not os.path.exists(free_job_script):
+    p = subprocess.run(["pgrep", "-f", "claude-free"], capture_output=True, text=True)
+    if p.returncode == 0 and p.stdout.strip():
+        raise ExtraError("A free job is already running.")
+    if not (shutil.which("free-job") or os.path.exists(os.path.join(HOME, ".local", "bin", "free-job"))):
         raise ExtraError("free-job script is not installed.")
+    return project
 
-    subprocess.Popen(
-        [free_job_script, project, task],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True
-    )
 
+def _free_job_start(project, task):
+    script = shutil.which("free-job") or os.path.join(HOME, ".local", "bin", "free-job")
+    subprocess.Popen([script, project, task], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
     return f"Started free job on {project}. Ask me 'free job result' in a few minutes."
+
+
+def free_job(project, task, confirm=None):
+    """Desktop window: asks with a dialog. Phone/web chat (no dialog): queues the job and returns a one-time code
+    that only the owner's own typed 'approve <code>' message can redeem - the chat layer handles that message
+    directly, so the AI model can never approve its own request."""
+    project = _free_job_check(project, task)
+    if confirm is not None:
+        _approve(confirm, "Start Free Job?", f"This will start a free background job on project '{project}' with task:\n\n{task[:1200]}")
+        return _free_job_start(project, task)
+    import secrets
+    code = "%06d" % secrets.randbelow(1000000)
+    with open(_PENDING_JOB, "w") as f:
+        json.dump({"code": code, "project": project, "task": task, "created": time.time(), "tries": 0}, f)
+    try:
+        os.chmod(_PENDING_JOB, 0o600)
+    except OSError:
+        pass
+    return (f"Waiting for your OK. Free job on '{project}':\n{task[:600]}\n\n"
+            f"To start it, type exactly: approve {code}   (valid {_PENDING_MINUTES} minutes). "
+            f"To drop it, type: cancel free job.")
+
+
+def free_job_approve(code):
+    """Called by the chat layer when the OWNER types 'approve <code>'. Never exposed as an AI tool."""
+    try:
+        with open(_PENDING_JOB) as f:
+            p = json.load(f)
+    except (OSError, ValueError):
+        return "There is no free job waiting for approval."
+    if time.time() - p.get("created", 0) > _PENDING_MINUTES * 60:
+        os.remove(_PENDING_JOB)
+        return "That free job request expired. Ask me again."
+    if str(code) != p.get("code"):
+        p["tries"] = p.get("tries", 0) + 1
+        if p["tries"] >= 3:
+            os.remove(_PENDING_JOB)
+            return "Wrong code three times - the request was dropped."
+        with open(_PENDING_JOB, "w") as f:
+            json.dump(p, f)
+        return "That code doesn't match the waiting free job."
+    os.remove(_PENDING_JOB)
+    try:
+        project = _free_job_check(p["project"], p["task"])
+    except ExtraError as e:
+        return str(e)
+    cfg_mod.log_activity("free_job", f"approved project={project!r} task={p['task'][:200]!r}")
+    return _free_job_start(project, p["task"])
+
+
+def free_job_cancel():
+    try:
+        os.remove(_PENDING_JOB)
+        return "Dropped the waiting free job."
+    except OSError:
+        return "There was no free job waiting."
 
 
 def free_job_result():

@@ -349,6 +349,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "Say something first."})
             focus = s.get("focus", "both")
             hist = s["histories"][focus]
+            # Owner approval for free jobs: handled here, outside the AI model, so it can't approve itself.
+            import re as _re
+            import va_extras
+            _ap = _re.match(r"^\s*approve\s+(\d{6})\s*$", msg, _re.I)
+            if _ap or _re.match(r"^\s*cancel\s+free\s*job\s*$", msg, _re.I):
+                reply = va_extras.free_job_approve(_ap.group(1)) if _ap else va_extras.free_job_cancel()
+                hist.extend([{"role": "user", "content": "[owner replied to the free-job approval prompt]"}, {"role": "assistant", "content": reply}])
+                cfg_mod.log_activity("web_chat", f"owner free-job reply: {reply[:120]!r}")
+                return self._send(200, {"reply": reply, "tools": []})
             cfg = cfg_mod.load_config()
             prog = progress[id(s)] = {"stage": "Waiting for my turn" if brain_lock.locked() else "Reading your message",
                                       "start": time.time(), "tools": []}
