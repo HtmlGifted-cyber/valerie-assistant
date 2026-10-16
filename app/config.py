@@ -184,6 +184,11 @@ def seed_user_data():
             target = os.path.join(dest, name)
             if not os.path.exists(target):
                 shutil.copy2(os.path.join(src, name), target)
+    try:   # built-in "mandatory" parts are restored every start (see va_skillsmp.py)
+        import va_skillsmp
+        va_skillsmp.ensure_mandatory()
+    except Exception:
+        pass
 
 
 def _deep_merge(base, override):

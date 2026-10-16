@@ -72,6 +72,15 @@ def _check():
 MAX_TOOL_TURNS = 8  # a full VA check-in uses several tools
 
 
+def _builtin_rules():
+    """Rules that ship with Valerie and cannot be switched off from config (see va_skillsmp.PINNED_RULE)."""
+    try:
+        import va_skillsmp
+        return va_skillsmp.PINNED_RULE
+    except Exception:
+        return ""
+
+
 def build_system_prompt(cfg, prompt=None):
     """Static on purpose: Ollama caches the processed prompt prefix
     (system prompt + tool list + history), so anything that changes per
@@ -93,6 +102,7 @@ def build_system_prompt(cfg, prompt=None):
     return "\n\n".join([
         persona + (" " + summary if summary and summary not in persona else ""),
         *(["Core facts you must always follow:\n\n" + "\n\n".join(pinned)] if pinned else []),
+        _builtin_rules(),
         "Answer in plain text (no markdown tables); replies may be read aloud, so keep them short unless asked for detail.",
         "Each user message may start with a [Context] block (today's date and passages from the owner's knowledge base). "
         "Use it when relevant and cite the [title]; ignore it when it isn't.",

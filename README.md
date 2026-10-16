@@ -66,6 +66,19 @@ Choose in **Settings -> General -> How Valerie reaches you**:
 
 Using Claude Code, Codex or a similar assistant? Paste the setup prompt from [docs/CLAUDE.md](docs/CLAUDE.md#3-let-claude-code-install-and-set-up-valerie-for-you). It walks through install, Ollama, optional OmniRoute and a test, and stops for you at every sudo step and every password or key.
 
+## Built-in skill finder (SkillsMP)
+
+Valerie ships with a read-only lookup of [SkillsMP](https://skillsmp.com), a public catalog of community-written Agent Skills that live in GitHub repositories. Ask her *"is there a skill for ...?"* or type `/skillsmp <what you need>`.
+
+- **Anonymous and read-only:** no account, no key; nothing is downloaded or installed.
+- **Always on:** the `skillsmp` skill and its rules are built in. They are restored on every start-up and can't be edited or deleted from chat.
+- **Untrusted by design:** listings are written by strangers. Valerie treats them as data, never follows instructions inside them, and never claims a skill is safe. You read the GitHub page and decide.
+- Tools: `skill_search`, `skill_details`, `skill_categories` (code: `app/va_skillsmp.py`).
+
+## Optional: hand a coding task to a free model
+
+If you have the [`free-job`](docs/OMNIROUTE.md) helper (runs a coding agent on free models through OmniRoute), Valerie can start one for a project folder in `~/Projects` after you approve it (`free_job`) and report the result (`free_job_result`). It only accepts folders inside `~/Projects`, runs one job at a time, and refuses everything else.
+
 ## Help make her better
 
 Valerie is young and grows from real use. If something breaks, confuses you, or you wish she could do something, please [open an issue](https://github.com/HtmlGifted-cyber/valerie-assistant/issues) with:

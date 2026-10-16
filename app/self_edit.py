@@ -80,6 +80,14 @@ def _delete(path, confirm, what):
     return f"Deleted {what} (backup kept in .versions)."
 
 
+BUILTIN_SLUGS = {"skillsmp"}   # shipped with Valerie, restored on start-up (va_skillsmp.ensure_mandatory)
+
+
+def _guard_builtin(slug, what):
+    if slug in BUILTIN_SLUGS:
+        raise EditError(f"The {what} '{slug}' is built in and can't be changed or removed from chat.")
+
+
 # ------------------------------------------------------------------ skills
 
 def skill_manage(action, name=None, description=None, prompt=None, confirm=None):
@@ -94,6 +102,8 @@ def skill_manage(action, name=None, description=None, prompt=None, confirm=None)
             raise EditError(f"No skill named '{slug}'.")
         with open(path, encoding="utf-8") as f:
             return f.read()
+    if action in ("save", "delete"):
+        _guard_builtin(slug, "skill")
     if action == "save":
         if not prompt:
             raise EditError("A skill needs a prompt (use {input} where the user's details go).")
@@ -124,6 +134,8 @@ def kb_manage(action, name=None, content=None, confirm=None):
                 + "\n(Google Drive documents are also searchable but read-only.)") if files else "No knowledge files yet."
     path, slug = _kb_path(name)
     what = f"knowledge file '{slug}'"
+    if action in ("save", "append", "delete"):
+        _guard_builtin(slug, "knowledge file")
     if action == "read":
         if not os.path.exists(path):
             raise EditError(f"No {what}.")

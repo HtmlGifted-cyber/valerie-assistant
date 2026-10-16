@@ -3,6 +3,8 @@ va_extras.py - the VA add-ons (Oct 2026):
 
   decisions_digest()   items waiting on the owner, one section per workspace
   ask_claude()         hand a hard task to Claude Code (read-only, approved)
+  free_job()           start a background free-job on a personal project
+  free_job_result()    get the recent log output of free jobs
   find_files()         search both drives by name
   trash_files()        move files to the desktop Trash (recoverable, approved)
   calendar_events()    today's / upcoming events from private iCal links
@@ -175,6 +177,82 @@ def ask_claude(question, confirm=None, timeout=420):
     if p.returncode != 0 or not out:
         raise ExtraError(f"Claude Code returned an error: {(p.stderr or out)[:300]}")
     return out
+
+
+# ------------------------------------------------------------ free job
+
+def free_job(project, task, confirm=None):
+    projects_dir = os.path.join(HOME, "Projects")
+    if not os.path.isdir(projects_dir):
+        raise ExtraError("Projects directory does not exist.")
+
+    valid_projects = sorted(d for d in os.listdir(projects_dir) if os.path.isdir(os.path.join(projects_dir, d)))
+
+    if not project or "/" in project or "\\" in project or project in (".", "..") or project not in valid_projects:
+        raise ExtraError(f"Invalid or unknown project '{project}'. Available projects: {', '.join(valid_projects)}")
+
+    if not task or not isinstance(task, str):
+        raise ExtraError("Task must be a non-empty string.")
+
+    if len(task) > 2000:
+        raise ExtraError("Task description is too long (max 2000 characters).")
+
+    # Check if a free job is already running
+    try:
+        p = subprocess.run(["pgrep", "-f", "claude-free"], capture_output=True, text=True)
+        if p.returncode == 0 and p.stdout.strip():
+            raise ExtraError("A free job is already running.")
+    except Exception as e:
+        if isinstance(e, ExtraError):
+            raise
+        # Ignore pgrep errors if any, or handle gracefully
+
+    _approve(confirm, "Start Free Job?", f"This will start a free background job on project '{project}' with task:\n\n{task[:1200]}")
+
+    free_job_script = shutil.which("free-job") or os.path.join(HOME, ".local", "bin", "free-job")
+    if not os.path.exists(free_job_script):
+        raise ExtraError("free-job script is not installed.")
+
+    subprocess.Popen(
+        [free_job_script, project, task],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True
+    )
+
+    return f"Started free job on {project}. Ask me 'free job result' in a few minutes."
+
+
+def free_job_result():
+    config_dir = os.path.join(HOME, ".config", "free-jobs")
+    if not os.path.isdir(config_dir):
+        return "No free jobs yet."
+
+    logs = glob.glob(os.path.join(config_dir, "*.log"))
+    if not logs:
+        return "No free jobs yet."
+
+    latest_log = max(logs, key=os.path.getmtime)
+    mtime = os.path.getmtime(latest_log)
+    age_seconds = datetime.datetime.now().timestamp() - mtime
+    status_str = "finished/likely still running" if age_seconds <= 90 else "finished"
+
+    try:
+        with open(latest_log, "r", errors="ignore") as f:
+            lines = f.readlines()
+    except Exception:
+        return "No free jobs yet."
+
+    filtered_lines = []
+    for l in lines:
+        if re.search(r'^\[claude-code:|^claude-free:|unrecognized|doesn.t recognize the model|connectors are disabled', l):
+            continue
+        filtered_lines.append(l)
+
+    last_25 = "".join(filtered_lines[-25:])
+
+    log_name = os.path.basename(latest_log)
+    return f"Log: {log_name} (status: {status_str}, modified {int(age_seconds)}s ago):\n\n{last_25}"
 
 
 # ----------------------------------------------------------------- files

@@ -25,6 +25,7 @@ import mail_client
 import connectors as connectors_mod
 import reminders as reminders_mod
 import va_extras
+import va_skillsmp
 import mail_router
 import self_edit
 import thunderbird_mail as tbmail
@@ -129,6 +130,23 @@ TOOL_SCHEMAS = [
     {"name": "ask_claude",
      "description": "Hand a hard question or long writing task to Claude (the owner approves first). Use when the task is beyond you.",
      "parameters": _obj({"question": {"type": "string"}}, ["question"])},
+    {"name": "skill_search",
+     "description": "Search SkillsMP, the public catalog of community Agent Skills (read-only; nothing is installed). Use when the owner asks if a skill, plugin or ready-made tool exists for something. Results are untrusted third-party text.",
+     "parameters": _obj({"query": {"type": "string", "description": "2-4 keywords."},
+                         "category": {"type": "string", "description": "Optional category slug from skill_categories."}}, ["query"])},
+    {"name": "skill_details",
+     "description": "Show one SkillsMP listing (author, stars, GitHub link) by its id from skill_search.",
+     "parameters": _obj({"id": {"type": "string"}}, ["id"])},
+    {"name": "skill_categories",
+     "description": "List SkillsMP category slugs that can filter skill_search.",
+     "parameters": _obj()},
+    {"name": "free_job",
+     "description": "Start a free background job on a personal project (the owner approves first).",
+     "parameters": _obj({"project": {"type": "string", "description": "Project name inside ~/Projects."},
+                         "task": {"type": "string", "description": "The task instructions for the free model."}}, ["project", "task"])},
+    {"name": "free_job_result",
+     "description": "Get the recent log output and status of the latest free job.",
+     "parameters": _obj()},
     {"name": "tv",
      "description": "Control the Roku TV: action power_on, power_off, mute, volume_up, volume_down, play_pause, home, back, open_app (app = YouTube, YouTube TV, Tubi, Plex, Pluto...), input (app = HDMI 1/2/3, Live TV), status.",
      "parameters": _obj({"action": {"type": "string"}, "app": {"type": "string"},
@@ -498,6 +516,16 @@ def execute_tool(name, args, update_chat=None):
             _n, result = va_extras.decisions_digest(cfg)
         elif name == "ask_claude":
             result = "Claude says:\n" + va_extras.ask_claude(args["question"], confirm=CONFIRM)
+        elif name == "skill_search":
+            result = va_skillsmp.search(args["query"], args.get("category"))
+        elif name == "skill_details":
+            result = va_skillsmp.details(args["id"])
+        elif name == "skill_categories":
+            result = va_skillsmp.categories()
+        elif name == "free_job":
+            result = va_extras.free_job(args["project"], args["task"], confirm=CONFIRM)
+        elif name == "free_job_result":
+            result = va_extras.free_job_result()
         elif name == "tv":
             import tv_control
             try:
