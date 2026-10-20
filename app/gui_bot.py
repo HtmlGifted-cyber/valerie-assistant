@@ -41,6 +41,7 @@ import mail_format
 import workspaces as ws
 import skills as skills_mod
 import voices
+import va_worker
 from brain import run_agent_loop
 
 # Piper lives in the user's own folder on new installs (downloaded by the
@@ -737,6 +738,14 @@ class ValerieAssistantGUI:
             return
         if re.search(r"\b(kdp|book projects?|books)\b.*\b(status|tracker|progress|ready|closest)\b", lower):
             self.handle_command("/kdp")
+            return
+        m = re.search(r"\bhow('?s| is| are)\s+(the |my )?(web ?server|website|connections?|node|cases?)\b", lower)
+        if m and va_worker.configured():
+            w = m.group(3)
+            topic = ("web" if w.startswith(("web", "website")) else "connections" if w.startswith("connection")
+                     else "cases" if w.startswith("case") else "node")
+            self._in_background(lambda: self._run_local_tool("edge_worker_report", {"topic": topic}),
+                                lambda r: self.update_chat(self.bot_name, r, speak=False))
             return
         m = re.match(r"(ask claude|hey claude|claude,)\s*(to |about |:)?\s*(.+)", lower)
         if m:

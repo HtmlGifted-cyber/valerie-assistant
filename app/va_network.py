@@ -8,14 +8,49 @@ Baselines live in ~/.local/share/valerie-assistant/guardian/ and are created on 
 """
 import json, os, re, socket, subprocess, time
 
-GUARD = os.path.expanduser("~/.local/share/ecohub/guardian")  # shared with Ecosystem Hub guardian
-DASH_STATUS = "/var/www/html/eco/status.json"   # optional: Ecosystem Hub status file if present
+
+
+def _watch():
+    try:
+        import config as cfg_mod
+        return cfg_mod.load_config().get("network_watch") or {}
+    except Exception:
+        return {}
+
+
+def _guard_dir():
+    return os.path.expanduser(_watch().get("baseline_dir") or "~/.local/share/valerie-assistant/guardian")
+
+
+def _dash_status():
+    """Optional JSON status file from a home dashboard (config network_watch.status_file); '' = none."""
+    return os.path.expanduser(_watch().get("status_file") or "")
+
+
+def check_services():
+    """Is each watched service (config network_watch.services) answering on its port? Skips unset entries."""
+    out = []
+    for s in _watch().get("services") or []:
+        if not isinstance(s, dict) or not s.get("enabled") or not s.get("host"):
+            continue
+        try:
+            port = int(s.get("port") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not 0 < port < 65536:
+            continue
+        try:
+            with socket.create_connection((str(s["host"]), port), timeout=3):
+                out.append("%s is answering" % s.get("name", "a service"))
+        except OSError:
+            out.append("%s is NOT answering" % s.get("name", "a service"))
+    return out
 
 
 def home_summary(max_age=1800):
     """One-line home-system summary from the status collector (works offline). None if missing or stale."""
     try:
-        with open(DASH_STATUS) as f:
+        with open(_dash_status()) as f:
             d = json.load(f)
         if time.time() - d.get("generated", 0) > max_age or not d.get("summary"):
             return None
@@ -90,7 +125,7 @@ def network_check(run_speed_test=True):
         facts.append("Programs with the most connections: " + ", ".join(f"{n} ({c})" for n, c in top))
     # devices on the network (from the dashboard collector, if installed)
     try:
-        with open(DASH_STATUS) as f:
+        with open(_dash_status()) as f:
             devs = json.load(f)["network"]["devices"]
         home = [d for d in devs if d.get("up")]
         new = [d for d in home if not d.get("known")]
@@ -98,14 +133,15 @@ def network_check(run_speed_test=True):
                      (f", including {len(new)} I don't recognize" if new else ""))
     except Exception:
         pass
+    facts.extend(check_services())
     if run_speed_test:
         s = _speed_test()
         if s:
             facts.append("Speed test: " + ", ".join(
                 f"{k.replace('_mbps', '').replace('_ms', '')} {v}{' ms' if k.endswith('_ms') else ' Mbps'}"
                 for k, v in s.items()))
-            os.makedirs(GUARD, exist_ok=True)
-            with open(os.path.join(GUARD, "speed-history.jsonl"), "a") as f:
+            os.makedirs(_guard_dir(), exist_ok=True)
+            with open(os.path.join(_guard_dir(), "speed-history.jsonl"), "a") as f:
                 f.write(json.dumps(dict(s, ts=int(time.time()))) + "\n")
         else:
             facts.append("The speed test couldn't reach the internet, so the internet connection itself may be down")
@@ -115,8 +151,8 @@ def network_check(run_speed_test=True):
 
 def _baseline(name, current):
     """Compare a set of items with the saved baseline; save the baseline on first run."""
-    os.makedirs(GUARD, exist_ok=True)
-    p = os.path.join(GUARD, name + ".json")
+    os.makedirs(_guard_dir(), exist_ok=True)
+    p = os.path.join(_guard_dir(), name + ".json")
     if not os.path.exists(p):
         with open(p, "w") as f:
             json.dump(sorted(current), f)
@@ -163,7 +199,7 @@ def security_check():
                   f"; NEW since baseline: {', '.join(sorted(new))}" if new else "; nothing new"))
     # 4. unknown devices on the network
     try:
-        with open(DASH_STATUS) as f:
+        with open(_dash_status()) as f:
             devs = json.load(f)["network"]["devices"]
         strangers = [d for d in devs if d.get("up") and not d.get("known")]
         facts.append("Unknown devices on the network: " +
@@ -177,7 +213,7 @@ def security_check():
 def accept_baseline():
     """Owner confirmed the current ports/startup items are fine: make them the new normal."""
     for n in ("ports", "startup"):
-        p = os.path.join(GUARD, n + ".json")
+        p = os.path.join(_guard_dir(), n + ".json")
         if os.path.exists(p):
             os.remove(p)
     security_check()

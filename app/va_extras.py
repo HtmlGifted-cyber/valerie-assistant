@@ -222,17 +222,39 @@ def free_job(project, task, confirm=None):
     if confirm is not None:
         _approve(confirm, "Start Free Job?", f"This will start a free background job on project '{project}' with task:\n\n{task[:1200]}")
         return _free_job_start(project, task)
+    return _queue_pending({"kind": "free_job", "project": project, "task": task},
+                          f"Free job on '{project}':\n{task[:600]}")
+
+
+def _queue_pending(payload, summary):
+    """Park ONE action awaiting the owner's typed 'approve <code>' (shared by free_job and MCP calls)."""
     import secrets
     code = "%06d" % secrets.randbelow(1000000)
     with open(_PENDING_JOB, "w") as f:
-        json.dump({"code": code, "project": project, "task": task, "created": time.time(), "tries": 0}, f)
+        json.dump(dict(payload, code=code, created=time.time(), tries=0), f)
     try:
         os.chmod(_PENDING_JOB, 0o600)
     except OSError:
         pass
-    return (f"Waiting for your OK. Free job on '{project}':\n{task[:600]}\n\n"
+    return (f"Waiting for your OK. {summary}\n\n"
             f"To start it, type exactly: approve {code}   (valid {_PENDING_MINUTES} minutes). "
             f"To drop it, type: cancel free job.")
+
+
+def owner_gate(kind, title, summary, payload, confirm=None):
+    """Owner approval for a non-free-job action, same mechanism as free_job: a dialog when there is a window,
+    otherwise a one-time code only the owner's own typed message can redeem (never the AI model)."""
+    if confirm is not None:
+        _approve(confirm, title, summary)
+        return _run_approved(kind, payload)
+    return _queue_pending(dict(payload, kind=kind), summary)
+
+
+def _run_approved(kind, payload):
+    if kind == "mcp":
+        import va_mcp
+        return va_mcp.execute_approved(payload)
+    return "Unknown kind of waiting action."
 
 
 def free_job_approve(code):
@@ -241,7 +263,7 @@ def free_job_approve(code):
         with open(_PENDING_JOB) as f:
             p = json.load(f)
     except (OSError, ValueError):
-        return "There is no free job waiting for approval."
+        return "There is nothing waiting for your approval."
     if time.time() - p.get("created", 0) > _PENDING_MINUTES * 60:
         os.remove(_PENDING_JOB)
         return "That free job request expired. Ask me again."
@@ -254,6 +276,9 @@ def free_job_approve(code):
             json.dump(p, f)
         return "That code doesn't match the waiting free job."
     os.remove(_PENDING_JOB)
+    if p.get("kind", "free_job") != "free_job":
+        cfg_mod.log_activity("owner_approved", f"kind={p.get('kind')}")
+        return _run_approved(p["kind"], p)
     try:
         project = _free_job_check(p["project"], p["task"])
     except ExtraError as e:

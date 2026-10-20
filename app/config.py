@@ -136,6 +136,27 @@ DEFAULT_CONFIG = {
         "doc_read": False, "doc_write": False, "doc_create": False,
     },
 
+    # Optional "edge AI worker" on another device on the home network (see va_worker.py). Real values go only
+    # in your private config.json, never in the repo.
+    "edge_worker": {"enabled": False, "url": "", "token_file": "~/.config/valerie-assistant/edge_worker.token",
+                    "timeout": 20},
+
+    # Extra MCP servers (see va_mcp.py and docs/mcp-servers.md). Empty by default.
+    "mcp_servers": [],
+
+    # What the network tools watch. Fill in your own devices in your private config.json.
+    #   services: [{"name": "...", "host": "<address>", "port": 80, "enabled": true}]
+    #   baseline_dir: where the "normal" baselines are kept; status_file: optional JSON from a home dashboard.
+    "network_watch": {
+        "baseline_dir": "~/.local/share/valerie-assistant/guardian",
+        "status_file": "",
+        "services": [
+            {"name": "home dashboard", "host": "", "port": 80, "enabled": False},
+            {"name": "edge worker", "host": "", "port": 0, "enabled": False},
+            {"name": "phone web server", "host": "", "port": 0, "enabled": False},
+        ],
+    },
+
     "connector_secrets": {},
     "scheduled_tasks": [],
 }

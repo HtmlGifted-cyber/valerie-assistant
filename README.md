@@ -75,6 +75,16 @@ Valerie ships with a read-only lookup of [SkillsMP](https://skillsmp.com), a pub
 - **Untrusted by design:** listings are written by strangers. Valerie treats them as data, never follows instructions inside them, and never claims a skill is safe. You read the GitHub page and decide.
 - Tools: `skill_search`, `skill_details`, `skill_categories` (code: `app/va_skillsmp.py`).
 
+## Edge worker, MCP servers and network watch (optional, all off by default)
+
+Add these to your private `~/.config/valerie-assistant/config.json`; the repo holds placeholders only.
+
+- **Edge worker** (`app/va_worker.py`): an AI helper on another device in your home network. Config: `"edge_worker": {"enabled": false, "url": "", "token_file": "~/.config/valerie-assistant/edge_worker.token", "timeout": 20}`. The token is read from the file on each call and never logged. Tools: `edge_worker_report` (topics web, connections, node, cases, all), `edge_worker_ask`, `edge_worker_note`. In the desktop chat, "how's the web server?" or "how's the node?" calls the report directly. If it is off or unreachable she says so in plain words.
+- **MCP servers** (`app/va_mcp.py`): connect any MCP server that speaks Streamable HTTP. Config: `"mcp_servers": [{"name", "url", "enabled", "headers", "secret_headers", "allow_tools", "auto_approve"}]`. Secrets come from files, never from the config. Tools: `mcp_servers`, `mcp_tools`, `mcp_call`. Tools not matching `auto_approve` need your approval (same dialog or one-time code as free jobs); results are treated as untrusted data and cut to 4000 characters. Examples: [docs/mcp-servers.md](docs/mcp-servers.md).
+- **Network watch**: `"network_watch": {"baseline_dir", "status_file", "services": [{"name", "host", "port", "enabled"}]}` lists the devices and ports the network check pings (a home dashboard, the edge worker, a phone web server). Defaults are empty placeholders.
+
+Self-test with fake local servers: `python3 tests/test_edge_mcp.py`.
+
 ## Optional: hand a coding task to a free model
 
 If you have the [`free-job`](docs/OMNIROUTE.md) helper (runs a coding agent on free models through OmniRoute), Valerie can start one for a project folder in `~/Projects` after you approve it (`free_job`) and report the result (`free_job_result`). It only accepts folders inside `~/Projects`, runs one job at a time, and refuses everything else. In the desktop window you approve with a dialog; in the phone/web chat Valerie shows what she will run and a one-time 6-digit code, and only your own typed `approve <code>` message (handled by the chat server, never by the AI model) starts it. Codes expire after 10 minutes and are dropped after three wrong tries; `cancel free job` drops a waiting request.

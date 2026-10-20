@@ -353,7 +353,7 @@ class Handler(BaseHTTPRequestHandler):
             import re as _re
             import va_extras
             _ap = _re.match(r"^\s*approve\s+(\d{6})\s*$", msg, _re.I)
-            if _ap or _re.match(r"^\s*cancel\s+free\s*job\s*$", msg, _re.I):
+            if _ap or _re.match(r"^\s*cancel\s+(free\s*job|action|mcp)\s*$", msg, _re.I):
                 reply = va_extras.free_job_approve(_ap.group(1)) if _ap else va_extras.free_job_cancel()
                 hist.extend([{"role": "user", "content": "[owner replied to the free-job approval prompt]"}, {"role": "assistant", "content": reply}])
                 cfg_mod.log_activity("web_chat", f"owner free-job reply: {reply[:120]!r}")
