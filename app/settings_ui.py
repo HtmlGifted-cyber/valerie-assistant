@@ -43,7 +43,7 @@ TOOL_LABELS = {
     "use_connector": "Connectors / plug-ins", "reminder": "Reminders & schedule", "decisions": "What needs my decision",
     "ask_claude": "Ask Claude (asks first)", "find_files": "Find files", "trash_files": "Move files to Trash (asks first)",
     "calendar": "Calendar events", "kdp_tracker": "Book projects tracker", "web_search": "Web search",
-    "web_read": "Read web pages", "sheet_read": "Google Sheets: read", "sheet_write": "Google Sheets: write",
+    "web_answer": "Web answers (Perplexity, paid API)", "web_read": "Read web pages", "sheet_read": "Google Sheets: read", "sheet_write": "Google Sheets: write",
     "sheet_append": "Google Sheets: add row", "doc_read": "Google Docs: read", "doc_write": "Google Docs: write",
     "doc_create": "Google Docs: create",
 }

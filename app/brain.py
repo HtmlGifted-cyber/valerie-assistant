@@ -380,16 +380,11 @@ def _perplexity_client(key):
     return Perplexity(api_key=key, max_retries=0)
 
 
-def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
-    """Web-grounded answers through the Perplexity Agent API.
-
-    The research loop (search, fetch, reason) runs on Perplexity's side,
-    so Valerie's local function tools are NOT available through this
-    brain - pick it for questions that need the live web, not for jobs
-    that touch her mail, files or TV. The API key is read only from the
-    PERPLEXITY_API_KEY environment variable (create one at
-    console.perplexity.ai); it is never stored in config.json or logged.
-    """
+def _perplexity_call(input_items, cfg, instructions):
+    """Shared core for the Perplexity brain and the web_answer tool: key
+    check, request build (preset or direct model), sanitized error mapping,
+    and the answer plus its cited sources. Returns the final text - errors
+    come back as friendly strings, never exceptions."""
     try:
         import perplexity as _pplx
     except ImportError:
@@ -403,19 +398,7 @@ def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
     p = cfg.get("perplexity", {})
     model = (p.get("model") or "").strip()
     preset = (p.get("preset") or "low").strip() or "low"
-    # Multi-turn: replay the recent turns as input message items, then the
-    # new question (same shape the API itself documents for replay).
-    input_items = [{"type": "message", "role": m["role"], "content": m["content"]}
-                   for m in _history_messages(history, cfg)]
-    input_items.append({"type": "message", "role": "user",
-                        "content": build_user_turn(cfg, prompt, ecosystem)})
-    kwargs = {"input": input_items,
-              # Request-level instructions replace only the preset's system
-              # prompt; its model, tools and limits stay.
-              "instructions": build_system_prompt(cfg) + (
-                  " When a question needs current or web-wide information, "
-                  "search the web and ground the answer in what you find, "
-                  "keeping the inline source citations.")}
+    kwargs = {"input": input_items, "instructions": instructions}
     if model:
         # Direct model: web grounding is the point, so always offer search.
         kwargs["model"] = model
@@ -427,8 +410,6 @@ def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
     else:
         kwargs["preset"] = preset
 
-    if update_chat:
-        update_chat("Valerie", "(searching the web...)", speak=False)
     try:
         resp = _perplexity_client(key).responses.create(**kwargs)
     except _pplx.AuthenticationError:
@@ -468,6 +449,48 @@ def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
     if sources:
         text += "\n\nSources:\n" + "\n".join("- " + u for u in sources[:5])
     return text
+
+
+def perplexity_web_answer(question, cfg):
+    """web_answer tool: one web-grounded answer for the local brain.
+
+    Called from tools.execute_tool when the owner has enabled the tool in
+    Settings (pay-per-use). The answer returns with its cited sources so
+    the calling model can relay it."""
+    instructions = ("Answer the question for a voice assistant: plain text, "
+                    "concise, no markdown tables. Search the web, ground the "
+                    "answer in what you find and keep the inline citations.")
+    return _perplexity_call([{"type": "message", "role": "user", "content": question}],
+                            cfg, instructions)
+
+
+def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
+    """Web-grounded answers through the Perplexity Agent API.
+
+    The research loop (search, fetch, reason) runs on Perplexity's side,
+    so Valerie's local function tools are NOT available through this
+    brain - pick it for questions that need the live web, not for jobs
+    that touch her mail, files or TV. (For local brains that still need
+    the web, the web_answer tool hands individual questions over.)
+    The API key is read only from the PERPLEXITY_API_KEY environment
+    variable (create one at console.perplexity.ai); it is never stored
+    in config.json or logged.
+    """
+    # Multi-turn: replay the recent turns as input message items, then the
+    # new question (same shape the API itself documents for replay).
+    input_items = [{"type": "message", "role": m["role"], "content": m["content"]}
+                   for m in _history_messages(history, cfg)]
+    input_items.append({"type": "message", "role": "user",
+                        "content": build_user_turn(cfg, prompt, ecosystem)})
+    # Request-level instructions replace only the preset's system
+    # prompt; its model, tools and limits stay.
+    instructions = build_system_prompt(cfg) + (
+        " When a question needs current or web-wide information, "
+        "search the web and ground the answer in what you find, "
+        "keeping the inline source citations.")
+    if update_chat:
+        update_chat("Valerie", "(searching the web...)", speak=False)
+    return _perplexity_call(input_items, cfg, instructions)
 
 
 def _run_omniroute(prompt, cfg, update_chat, history, ecosystem=None):

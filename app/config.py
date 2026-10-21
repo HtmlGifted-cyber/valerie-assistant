@@ -139,6 +139,8 @@ DEFAULT_CONFIG = {
         "skill_manage": True, "kb_manage": True, "use_connector": True, "reminder": True,
         "decisions": True, "ask_claude": True, "find_files": True, "trash_files": True,
         "calendar": True, "kdp_tracker": False, "web_search": True, "web_read": True,
+        # Pay-per-use Perplexity answers; enable in Settings once the key is exported.
+        "web_answer": False,
         "sheet_read": False, "sheet_write": False, "sheet_append": False,
         "doc_read": False, "doc_write": False, "doc_create": False,
     },

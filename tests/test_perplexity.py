@@ -5,7 +5,8 @@ official SDK client is redirected to the fake server via brain._perplexity_clien
 Covers the documented Agent API contract (docs.perplexity.ai): POST /v1/agent
 (served here through the SDK's /v1/responses alias), presets vs direct models,
 history replay as input message items, output_text, url_citation annotations,
-and the sanitized error paths.
+the sanitized error paths, the web_answer tool, and a full Ollama round trip
+(the local model calls web_answer and relays the sourced answer).
 """
 import json, os, sys, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -23,8 +24,11 @@ except ImportError:
 
 KEY = "dummy-key-for-test"
 PORT = 18770
+OLLAMA_PORT = 18771
 REQUESTS = []
-FAULT = [None]  # None | "401" | "429" | "failed" | "empty" | "no-annotations"
+OLLAMA_REQUESTS = []
+SERVERS = []
+FAULT = [None]  # None | "401" | "429" | "429long" | "failed" | "empty" | "no-annotations"
 
 
 def _response_body(fault):
@@ -65,20 +69,61 @@ class Agent(BaseHTTPRequestHandler):
             self.send_header("Retry-After", "0.1")   # keep the SDK's automatic retry fast
             self.send_header("Content-Length", str(len(data))); self.end_headers()
             self.wfile.write(data); return
+        if fault == "429long":
+            data = b"{}"
+            self.send_response(429); self.send_header("Content-Type", "application/json")
+            self.send_header("Retry-After", "120")  # longer than the SDK would ever honor
+            self.send_header("Content-Length", str(len(data))); self.end_headers()
+            self.wfile.write(data); return
         data = json.dumps(_response_body(fault)).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data))); self.end_headers()
         self.wfile.write(data)
 
 
+class Ollama(BaseHTTPRequestHandler):
+    """Fake local Ollama: turn 1 calls the web_answer tool, turn 2 relays
+    the sourced Perplexity answer."""
+    def log_message(self, *a): pass
+    def do_GET(self):
+        data = json.dumps({"models": [{"name": "qwen2.5:3b"}]}).encode()
+        self.send_response(200); self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data))); self.end_headers()
+        self.wfile.write(data)
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(n)) if n else {}
+        OLLAMA_REQUESTS.append(body)
+        if len(OLLAMA_REQUESTS) == 1:
+            msg = {"role": "assistant", "content": "",
+                   "tool_calls": [{"function": {"name": "web_answer",
+                                                "arguments": {"query": "who won the world series?"}}}]}
+        else:
+            msg = {"role": "assistant", "content": "The Yankees won, per the sources."}
+        out = (json.dumps({"message": msg, "done": True}) + "\n").encode()
+        self.send_response(200); self.send_header("Content-Type", "application/x-ndjson")
+        self.send_header("Content-Length", str(len(out))); self.end_headers()
+        self.wfile.write(out)
+
+
 def serve():
-    s = HTTPServer(("127.0.0.1", PORT), Agent)
-    threading.Thread(target=s.serve_forever, daemon=True).start()
-    return s
+    for srv in (HTTPServer(("127.0.0.1", PORT), Agent), HTTPServer(("127.0.0.1", OLLAMA_PORT), Ollama)):
+        SERVERS.append(srv)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
 
 
-# Redirect the official SDK at the fake server (no public base_url config).
-brain._perplexity_client = lambda key: Perplexity(api_key=key, base_url=f"http://127.0.0.1:{PORT}")
+# Keep the production client factory under test (it sets max_retries=0 so a
+# 429 is never retried prematurely); only the SDK constructor is wrapped to
+# inject the local URL - no public base_url config exists.
+_REAL_INIT = Perplexity.__init__
+
+
+def _local_init(self, *a, **kw):
+    kw["base_url"] = f"http://127.0.0.1:{PORT}"
+    _REAL_INIT(self, *a, **kw)
+
+
+Perplexity.__init__ = _local_init
 
 CFG = {"assistant": {"persona": "You are Valerie, a helpful local assistant.",
                      "pinned_files": [], "history_turns": 2},
@@ -86,7 +131,8 @@ CFG = {"assistant": {"persona": "You are Valerie, a helpful local assistant.",
 HISTORY = [{"role": "user", "content": "what is rust?"},
            {"role": "assistant", "content": "a systems programming language."}]
 
-s = serve()
+s = None
+serve()
 fail = []
 def check(name, cond):
     print(("PASS " if cond else "FAIL ") + name); cond or fail.append(name)
@@ -152,6 +198,13 @@ r = brain.run_agent_loop("perplexity", "hi", CFG)
 check("429 with fractional Retry-After -> generic rate-limit message",
       "rate-limiting" in r and "in a minute" in r)
 
+FAULT[0] = "429long"
+n_before = len(REQUESTS)
+r = brain.run_agent_loop("perplexity", "hi", CFG)
+check("429 with long Retry-After: exactly one request, interval relayed",
+      len(REQUESTS) - n_before == 1 and "in about 120 seconds" in r)
+FAULT[0] = None
+
 # Integer Retry-After from the server must be reflected in the message.
 import perplexity as _pplx2
 
@@ -176,10 +229,93 @@ finally:
 check("429 with integer Retry-After: 30 -> 'in about 30 seconds'", "in about 30 seconds" in r)
 FAULT[0] = None
 
+# --- web_answer tool (local brain delegates web questions) ---------------------
+import tools as tools_mod
+
+TOOL_CFG = {"assistant": CFG["assistant"], "perplexity": {"preset": "low", "model": ""},
+            "enabled_tools": {"web_answer": True}}
+check("web_answer advertised to the model when enabled",
+      any(t["name"] == "web_answer" for t in tools_mod.enabled_schemas(TOOL_CFG)))
+TOOL_CFG["enabled_tools"]["web_answer"] = False
+check("web_answer hidden when disabled",
+      all(t["name"] != "web_answer" for t in tools_mod.enabled_schemas(TOOL_CFG)))
+TOOL_CFG["enabled_tools"]["web_answer"] = True
+
+# execute_tool loads config itself; point it at the test config and keep the
+# activity log out of the real one.
+real_load, real_log = cfg_mod.load_config, cfg_mod.log_activity
+
+
+def _tool_call():
+    cfg_mod.load_config = lambda: TOOL_CFG
+    cfg_mod.log_activity = lambda *a, **k: None
+    try:
+        return tools_mod.execute_tool("web_answer", {"query": "who won the world series?"})
+    finally:
+        cfg_mod.load_config, cfg_mod.log_activity = real_load, real_log
+
+
+r = _tool_call()
+_, _, body = REQUESTS[-1]
+check("web_answer request: single user message, no history replay",
+      [i["role"] for i in body["input"]] == ["user"]
+      and body["input"][0]["content"] == "who won the world series?")
+check("web_answer request: compact voice-assistant instructions, preset",
+      "voice assistant" in body["instructions"] and body.get("preset") == "low")
+check("web_answer result: answer + sources for the calling model",
+      r.startswith("The answer.") and "Sources:" in r)
+
+os.environ.pop("PERPLEXITY_API_KEY", None)
+n_before = len(REQUESTS)
+r = _tool_call()
+os.environ["PERPLEXITY_API_KEY"] = KEY
+check("web_answer without key: guidance in the result, no API call made",
+      "console.perplexity.ai" in r and len(REQUESTS) == n_before)
+
+TOOL_CFG["enabled_tools"]["web_answer"] = False
+check("web_answer schema hidden when disabled",
+      all(t["name"] != "web_answer" for t in tools_mod.enabled_schemas(TOOL_CFG)))
+n_before = len(REQUESTS)
+r = _tool_call()
+check("web_answer refused when disabled", r.startswith("Tool denied"))
+check("no Perplexity request when disabled", len(REQUESTS) == n_before)
+TOOL_CFG["enabled_tools"].pop("web_answer")  # absent flag: opt-in default must hold
+check("web_answer schema hidden when flag absent (opt-in default)",
+      all(t["name"] != "web_answer" for t in tools_mod.enabled_schemas(TOOL_CFG)))
+n_before = len(REQUESTS)
+r = _tool_call()
+check("web_answer refused when flag absent (opt-in default)", r.startswith("Tool denied"))
+check("no Perplexity request when flag absent", len(REQUESTS) == n_before)
+TOOL_CFG["enabled_tools"]["web_answer"] = True
+
+# --- full Ollama round trip: local model -> web_answer -> sourced reply --------
+OLLAMA_CFG = {"assistant": CFG["assistant"], "perplexity": {"preset": "low", "model": ""},
+              "enabled_tools": {"web_answer": True},
+              "ollama": {"host": f"http://127.0.0.1:{OLLAMA_PORT}", "model": "qwen2.5:3b",
+                         "timeout": 30}}
+OLLAMA_REQUESTS.clear()
+chat = []
+cfg_mod.load_config = lambda: OLLAMA_CFG
+cfg_mod.log_activity = lambda *a, **k: None
+try:
+    r = brain.call_ollama("who won the world series?", OLLAMA_CFG,
+                          update_chat=lambda who, txt, **k: chat.append(txt))
+finally:
+    cfg_mod.load_config, cfg_mod.log_activity = real_load, real_log
+check("ollama round trip: model receives the web_answer schema",
+      any(t.get("function", {}).get("name") == "web_answer" for t in OLLAMA_REQUESTS[0].get("tools", [])))
+check("ollama round trip: tool result carries the Perplexity answer + sources",
+      any(m.get("role") == "tool" and "The answer." in m.get("content", "")
+          and "https://example.com/a" in m.get("content", "")
+          for m in OLLAMA_REQUESTS[1]["messages"]))
+check("ollama round trip: final relayed reply after the tool call",
+      r == "The Yankees won, per the sources." and "(using web_answer...)" in chat)
+
 # --- default config wiring -----------------------------------------------------
 merged = cfg_mod.DEFAULT_CONFIG["perplexity"]
 check("DEFAULT_CONFIG has perplexity preset/model, no api_key field",
       merged == {"preset": "low", "model": ""})
 
-s.shutdown()
+for srv in SERVERS:
+    srv.shutdown()
 print("FAILED: %s" % fail if fail else "ALL PASSED"); sys.exit(1 if fail else 0)

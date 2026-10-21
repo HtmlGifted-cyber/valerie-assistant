@@ -190,6 +190,10 @@ TOOL_SCHEMAS = [
     {"name": "web_search",
      "description": "Search the web for current information.",
      "parameters": _obj({"query": {"type": "string"}}, ["query"])},
+    {"name": "web_answer",
+     "description": "Answer a question that needs current information from the web, with sources. "
+                    "Use when you need a researched answer, not just links (pay-per-use Perplexity).",
+     "parameters": _obj({"query": {"type": "string", "description": "The question to research."}}, ["query"])},
     {"name": "web_read",
      "description": "Read the text of a web page.",
      "parameters": _obj({"url": {"type": "string"}}, ["url"])},
@@ -281,13 +285,19 @@ class ToolDenied(Exception):
 CONFIRM = None
 
 
+def _tool_default_on(name):
+    """The shipped default for a tool flag - an opt-in (pay-per-use) tool
+    like web_answer must stay off even if a partial config omits it."""
+    return cfg_mod.DEFAULT_CONFIG["enabled_tools"].get(name, True)
+
+
 def enabled_schemas(cfg):
     """Only advertise tools that are switched on - fewer tools also
     means a small local model picks the right one more reliably."""
     enabled = cfg.get("enabled_tools", {})
     out = []
     for t in TOOL_SCHEMAS:
-        if not enabled.get(t["name"], True):
+        if not enabled.get(t["name"], _tool_default_on(t["name"])):
             continue
         if t["name"].startswith("edge_worker_") and not va_worker.configured():
             continue
@@ -309,7 +319,7 @@ def _connector(cfg):
 
 
 def _check_enabled(cfg, name):
-    if not cfg.get("enabled_tools", {}).get(name, True):
+    if not cfg.get("enabled_tools", {}).get(name, _tool_default_on(name)):
         raise ToolDenied(f"The '{name}' tool is turned off in Valerie's settings.")
 
 
@@ -581,6 +591,9 @@ def execute_tool(name, args, update_chat=None):
             result = va_extras.kdp_tracker(args.get("title"))
         elif name == "web_search":
             result = va_extras.web_search(args["query"])
+        elif name == "web_answer":
+            import brain as _brain  # local import: brain imports this module
+            result = _brain.perplexity_web_answer(args["query"], cfg)
         elif name == "web_read":
             result = va_extras.web_read(args["url"])
         elif name == "use_connector":

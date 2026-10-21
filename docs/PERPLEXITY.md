@@ -8,14 +8,23 @@ annotations, Valerie appends the cited sources as a list.
 
 ## When to pick it
 
-Use it for questions that need the **live web** ("what's the latest on X?",
-"compare current prices"). Two trade-offs:
+Two ways to get web-grounded answers, pick per situation:
 
-- Valerie's **local tools are not available** through this brain — it can't
-  read your mail, files or drive the TV. The research tools run on Perplexity's
-  servers. For local jobs, use the Ollama brain.
-- It's **pay-per-use** (billed per token plus a small per-search fee, cheaper
-  on presets). See [Perplexity pricing](https://docs.perplexity.ai/docs/getting-started/pricing).
+- **The `web_answer` tool (recommended start).** Keep the local Ollama brain
+  and let it hand web questions to Perplexity mid-conversation: enable
+  *Web answers (Perplexity, paid API)* in Settings → Tools. Each call is a
+  single researched answer with sources; Valerie's local tools keep working
+  everywhere else. Off by default (pay-per-use) — flip it on once your key
+  is exported.
+- **The Perplexity brain.** Switch the whole brain (Settings → General → AI
+  brain → *Perplexity (web-grounded)*) when you want every answer
+  web-grounded. Then Valerie's local tools are NOT available - the research
+  loop runs on Perplexity's side, not her mail, files or TV.
+
+Use it for questions that need the **live web** ("what's the latest on X?",
+"compare current prices"). Both paths are **pay-per-use** (billed per token
+plus a small per-search fee, cheaper on presets). See
+[Perplexity pricing](https://docs.perplexity.ai/docs/getting-started/pricing).
 
 ## Setup
 
@@ -34,7 +43,19 @@ Use it for questions that need the **live web** ("what's the latest on X?",
    pip install perplexityai
    ```
 
-4. Settings → General → AI brain → *Perplexity (web-grounded)*.
+4. Recommended: keep **Local (Ollama)** as the brain and enable
+   **Web answers (Perplexity, paid API)** in Settings → Tools. Valerie then
+   answers web questions through the `web_answer` tool while keeping all
+   her local abilities.
+
+   Alternative: switch the whole brain in Settings → General → AI brain →
+   *Perplexity (web-grounded)* — every reply becomes web-grounded, but her
+   local tools are not available through it.
+
+Questions are sent to Perplexity while this is enabled, and each answer is
+billed pay-per-use. When the response carries citation annotations Valerie
+appends the cited sources as a list — a source list is not guaranteed with
+every answer.
 
 If the key is missing, Valerie tells you instead of calling the API. If a key
 ever leaks, rotate it at [console.perplexity.ai](https://console.perplexity.ai).
@@ -52,7 +73,9 @@ In Settings → Calendar & Cloud:
 ## Notes for developers
 
 - The implementation is `app/brain.py`, `_run_perplexity()` — a provider like
-  the Claude/ChatGPT/Gemini ones, registered in `PROVIDERS`.
+  the Claude/ChatGPT/Gemini ones, registered in `PROVIDERS` — plus
+  `perplexity_web_answer()`, the shared core behind the `web_answer` tool
+  (`app/tools.py` schema + dispatch; opt-in via `enabled_tools`).
 - Multi-turn works by replaying the recent conversation as input message items
   (the API's documented replay shape); the answer is read from `output_text`,
   and cited URLs come from `url_citation` annotations on the text (deduplicated,
