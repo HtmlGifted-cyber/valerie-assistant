@@ -2,7 +2,8 @@
 brain.py - swappable AI backend for Valerie.
 
 Local-first: Ollama is the default and needs no account or key. Claude /
-ChatGPT / Gemini remain an opt-in upgrade with your own key.
+ChatGPT / Gemini / Perplexity (web-grounded, key from PERPLEXITY_API_KEY)
+remain an opt-in upgrade with your own key.
 
 All providers share one interface:
     run_agent_loop(provider, prompt, cfg, update_chat=None, history=None) -> final text
@@ -369,6 +370,106 @@ def _run_gemini(prompt, cfg, update_chat, history, ecosystem=None):
     return "Reached the tool-call limit for this turn."
 
 
+def _perplexity_client(key):
+    """Separate function so tests/test_perplexity.py can point the official
+    SDK at a local fake server instead of the real API. Automatic retries
+    are off on purpose: the SDK only honors Retry-After up to 60s and would
+    otherwise retry prematurely on longer server-requested waits, so the
+    429 handler below reports the server's own interval instead."""
+    from perplexity import Perplexity
+    return Perplexity(api_key=key, max_retries=0)
+
+
+def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
+    """Web-grounded answers through the Perplexity Agent API.
+
+    The research loop (search, fetch, reason) runs on Perplexity's side,
+    so Valerie's local function tools are NOT available through this
+    brain - pick it for questions that need the live web, not for jobs
+    that touch her mail, files or TV. The API key is read only from the
+    PERPLEXITY_API_KEY environment variable (create one at
+    console.perplexity.ai); it is never stored in config.json or logged.
+    """
+    try:
+        import perplexity as _pplx
+    except ImportError:
+        return "The 'perplexity' package isn't installed in Valerie's venv (it needs Python 3.10+)."
+    key = os.environ.get("PERPLEXITY_API_KEY", "")
+    if not key:
+        return ("No Perplexity API key found. Create one at "
+                "https://console.perplexity.ai and export it as "
+                "PERPLEXITY_API_KEY in your terminal.")
+
+    p = cfg.get("perplexity", {})
+    model = (p.get("model") or "").strip()
+    preset = (p.get("preset") or "low").strip() or "low"
+    # Multi-turn: replay the recent turns as input message items, then the
+    # new question (same shape the API itself documents for replay).
+    input_items = [{"type": "message", "role": m["role"], "content": m["content"]}
+                   for m in _history_messages(history, cfg)]
+    input_items.append({"type": "message", "role": "user",
+                        "content": build_user_turn(cfg, prompt, ecosystem)})
+    kwargs = {"input": input_items,
+              # Request-level instructions replace only the preset's system
+              # prompt; its model, tools and limits stay.
+              "instructions": build_system_prompt(cfg) + (
+                  " When a question needs current or web-wide information, "
+                  "search the web and ground the answer in what you find, "
+                  "keeping the inline source citations.")}
+    if model:
+        # Direct model: web grounding is the point, so always offer search.
+        kwargs["model"] = model
+        kwargs["tools"] = [{"type": "web_search"}]
+        if model.startswith("anthropic/"):
+            # Documented requirement: Anthropic models reject a request
+            # without max_output_tokens.
+            kwargs["max_output_tokens"] = int(p.get("max_output_tokens", 8192))
+    else:
+        kwargs["preset"] = preset
+
+    if update_chat:
+        update_chat("Valerie", "(searching the web...)", speak=False)
+    try:
+        resp = _perplexity_client(key).responses.create(**kwargs)
+    except _pplx.AuthenticationError:
+        return ("Perplexity rejected the API key. Check PERPLEXITY_API_KEY "
+                "(rotate it at console.perplexity.ai if it has been exposed).")
+    except _pplx.RateLimitError as e:
+        wait = ""
+        try:
+            ra = (e.response.headers.get("Retry-After") or "").strip()
+            if ra.isdigit():
+                wait = f" in about {int(ra)} seconds"
+        except Exception:  # headers unavailable - fall back to a generic hint
+            pass
+        return f"Perplexity is rate-limiting requests right now - try again{wait or ' in a minute'}."
+    except _pplx.APITimeoutError:
+        return "Perplexity took too long to answer. Try a narrower question."
+    except _pplx.APIConnectionError:
+        return "Couldn't reach Perplexity - check the internet connection."
+    except _pplx.APIStatusError as e:
+        return f"Perplexity returned HTTP {e.status_code}."
+    if getattr(resp, "status", None) == "failed":
+        return "Perplexity couldn't complete that request."
+    text = (getattr(resp, "output_text", "") or "").strip()
+    if not text:
+        return "No response."
+    # Sources the answer actually cites (url_citation annotations on the
+    # text) - not every page the search touched.
+    sources = []
+    for item in getattr(resp, "output", None) or []:
+        if getattr(item, "type", None) != "message":
+            continue
+        for part in getattr(item, "content", None) or []:
+            for a in getattr(part, "annotations", None) or []:
+                url = getattr(a, "url", None)
+                if getattr(a, "type", None) == "url_citation" and url and url not in sources:
+                    sources.append(url)
+    if sources:
+        text += "\n\nSources:\n" + "\n".join("- " + u for u in sources[:5])
+    return text
+
+
 def _run_omniroute(prompt, cfg, update_chat, history, ecosystem=None):
     """OpenAI-compatible call through the laptop's local OmniRoute router.
     Falls back to local Ollama if OmniRoute is down or errors, so Valerie always answers."""
@@ -416,7 +517,8 @@ def _run_omniroute(prompt, cfg, update_chat, history, ecosystem=None):
         return call_ollama(prompt, cfg, update_chat, history, ecosystem)
 
 
-PROVIDERS = {"anthropic": _run_anthropic, "openai": _run_openai, "gemini": _run_gemini, "omniroute": _run_omniroute}
+PROVIDERS = {"anthropic": _run_anthropic, "openai": _run_openai, "gemini": _run_gemini,
+            "omniroute": _run_omniroute, "perplexity": _run_perplexity}
 
 
 def run_agent_loop(provider, prompt, cfg=None, update_chat=None, history=None, ecosystem=None):

@@ -168,7 +168,7 @@ class SettingsWindow:
         _section(f, "AI brain", "Ollama runs on this laptop for free. The cloud options need your own API key (Calendar & Cloud page).")
         prov = tk.StringVar(value=c.get("active_provider", "ollama"))
         row = tk.Frame(f, bg=BG); row.pack(anchor="w")
-        for val, lab in [("ollama", "Local (Ollama)"), ("omniroute", "OmniRoute (free models)"), ("anthropic", "Claude"), ("openai", "ChatGPT"), ("gemini", "Gemini")]:
+        for val, lab in [("ollama", "Local (Ollama)"), ("omniroute", "OmniRoute (free models)"), ("anthropic", "Claude"), ("openai", "ChatGPT"), ("gemini", "Gemini"), ("perplexity", "Perplexity (web-grounded)")]:
             tk.Radiobutton(row, text=lab, value=val, variable=prov, bg=BG, font=(FONT, 9)).pack(side=tk.LEFT, padx=(0, 10))
         _label(f, "Local model (tool-calling: qwen2.5:3b, qwen2.5:1.5b = faster, qwen2.5:7b = smarter)", 8, fg=MUTED).pack(anchor="w", pady=(6, 0))
         model = tk.Entry(f, width=24); model.insert(0, c.get("ollama", {}).get("model", "qwen2.5:3b")); model.pack(anchor="w")
@@ -890,7 +890,9 @@ class SettingsWindow:
         _btn(f, "Test calendar", test_cal).pack(anchor="w", pady=4)
 
         _section(f, "Cloud AI (optional)", "Paste a key only if you want Claude, ChatGPT or Gemini as the brain "
-                 "(pick it on the General page). These are pay-per-use API keys, separate from chat subscriptions.")
+                 "(pick it on the General page). These are pay-per-use API keys, separate from chat subscriptions. "
+                 "Perplexity (web-grounded answers) is different: no key is stored here - it reads the "
+                 "PERPLEXITY_API_KEY environment variable from the terminal that starts Valerie.")
         keys = {}
         for sec, lab in [("anthropic", "Claude (Anthropic) API key"), ("openai", "ChatGPT (OpenAI) API key"),
                          ("gemini", "Gemini (Google) API key")]:
@@ -898,6 +900,11 @@ class SettingsWindow:
             _label(row, lab, 9, width=26).pack(side=tk.LEFT)
             e = tk.Entry(row, width=44, show="*"); e.insert(0, c.get(sec, {}).get("api_key", "")); e.pack(side=tk.LEFT)
             keys[sec] = e
+        row = tk.Frame(f, bg=BG); row.pack(anchor="w", pady=1)
+        _label(row, "Perplexity preset", 9, width=26).pack(side=tk.LEFT)
+        pset = tk.Entry(row, width=14); pset.insert(0, c.get("perplexity", {}).get("preset", "low")); pset.pack(side=tk.LEFT)
+        _label(row, "model (optional, e.g. openai/gpt-5.6-sol)", 8, fg=MUTED).pack(side=tk.LEFT, padx=(8, 0))
+        pmod = tk.Entry(row, width=28); pmod.insert(0, c.get("perplexity", {}).get("model", "")); pmod.pack(side=tk.LEFT)
 
         _section(f, "Google web app connector (Sheets & Docs)", "Your Apps Script web app. The token must match SHARED_TOKEN in the script.")
         row = tk.Frame(f, bg=BG); row.pack(anchor="w")
@@ -919,6 +926,8 @@ class SettingsWindow:
             c.setdefault("calendar", {})["ics_urls"] = [l.strip() for l in cal.get("1.0", "end").splitlines() if l.strip()]
             for sec, e in keys.items():
                 c.setdefault(sec, {})["api_key"] = e.get().strip()
+            c.setdefault("perplexity", {})["preset"] = pset.get().strip() or "low"
+            c.setdefault("perplexity", {})["model"] = pmod.get().strip()
             c.setdefault("web_app", {}).update(url=url.get().strip(), token=tok.get().strip())
         self.collectors.append(collect)
 

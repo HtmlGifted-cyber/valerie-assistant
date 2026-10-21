@@ -45,7 +45,7 @@ DEFAULT_CONFIG = {
     "setup_done": False,
     "owner": "",
 
-    # One of: "ollama", "omniroute", "anthropic", "openai", "gemini".
+    # One of: "ollama", "omniroute", "anthropic", "openai", "gemini", "perplexity".
     "active_provider": "ollama",
 
     # qwen2.5:3b - tool-calling capable and small enough for an ordinary
@@ -62,6 +62,13 @@ DEFAULT_CONFIG = {
     "anthropic": {"api_key": "", "model": "claude-opus-5-5"},
     "openai": {"api_key": "", "model": "gpt-4o"},
     "gemini": {"api_key": "", "model": "gemini-2.0-flash"},
+    # Perplexity Agent API: web-grounded answers with citations (see brain.py,
+    # _run_perplexity). No "api_key" here on purpose - the key is read only
+    # from the PERPLEXITY_API_KEY environment variable and never stored in
+    # config.json. "preset" bundles model + tools + limits (fast | low |
+    # medium | high | xhigh); "model" ("provider/name", e.g.
+    # "openai/gpt-5.6-sol") overrides the preset and runs with web_search.
+    "perplexity": {"preset": "low", "model": ""},
     # OmniRoute: a local router (https://github.com/diegosouzapw/OmniRoute) in front of free/own AI
     # providers with automatic fallback. "model" can be one model ("gemini/gemini-3.8-flash") or a
     # combo name you built in OmniRoute (e.g. "free-chain"). If OmniRoute is down, Valerie falls back to Ollama.

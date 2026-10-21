@@ -18,3 +18,6 @@ apscheduler
 # Optional cloud brains (only used if you add an API key in Settings)
 anthropic<1; python_version < "3.10"
 anthropic; python_version >= "3.10"
+# Perplexity Agent API brain (web-grounded answers; the SDK needs 3.10+ and
+# reads PERPLEXITY_API_KEY from the environment - see brain.py, _run_perplexity)
+perplexityai; python_version >= "3.10"
