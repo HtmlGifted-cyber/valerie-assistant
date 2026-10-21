@@ -593,7 +593,7 @@ def execute_tool(name, args, update_chat=None):
             result = va_extras.web_search(args["query"])
         elif name == "web_answer":
             import brain as _brain  # local import: brain imports this module
-            result = _brain.perplexity_web_answer(args["query"], cfg)
+            result = _brain.perplexity_web_answer(args["query"], cfg, confirm=CONFIRM)
         elif name == "web_read":
             result = va_extras.web_read(args["url"])
         elif name == "use_connector":

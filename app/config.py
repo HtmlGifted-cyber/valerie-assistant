@@ -68,7 +68,17 @@ DEFAULT_CONFIG = {
     # config.json. "preset" bundles model + tools + limits (fast | low |
     # medium | high | xhigh); "model" ("provider/name", e.g.
     # "openai/gpt-5.6-sol") overrides the preset and runs with web_search.
-    "perplexity": {"preset": "low", "model": ""},
+    "perplexity": {"preset": "low", "model": "",
+                   # Sharing Valerie's abilities with the Perplexity agent - all opt-in
+                   # (see docs/PERPLEXITY.md). skills: names from her skills folder sent
+                   # as inline Agent API skills (text instructions only). connectors:
+                   # Perplexity Project connector IDs, e.g.
+                   #   [{"id": "connector_github", "label": "github"}] - set up once at
+                   #   console.perplexity.ai so no credentials live here. mcp: names from
+                   #   mcp_servers to forward (cloud HTTPS only; their auth headers are
+                   #   sent to Perplexity). Connector/MCP calls ALWAYS ask first.
+                   # max_steps: 0 = automatic (12 when skills or shared tools are used).
+                   "skills": [], "connectors": [], "mcp": [], "max_steps": 0},
     # OmniRoute: a local router (https://github.com/diegosouzapw/OmniRoute) in front of free/own AI
     # providers with automatic fallback. "model" can be one model ("gemini/gemini-3.8-flash") or a
     # combo name you built in OmniRoute (e.g. "free-chain"). If OmniRoute is down, Valerie falls back to Ollama.

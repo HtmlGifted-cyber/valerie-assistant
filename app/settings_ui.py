@@ -905,6 +905,16 @@ class SettingsWindow:
         pset = tk.Entry(row, width=14); pset.insert(0, c.get("perplexity", {}).get("preset", "low")); pset.pack(side=tk.LEFT)
         _label(row, "model (optional, e.g. openai/gpt-5.6-sol)", 8, fg=MUTED).pack(side=tk.LEFT, padx=(8, 0))
         pmod = tk.Entry(row, width=28); pmod.insert(0, c.get("perplexity", {}).get("model", "")); pmod.pack(side=tk.LEFT)
+        row = tk.Frame(f, bg=BG); row.pack(anchor="w", pady=1)
+        _label(row, "Share skills (names)", 9, width=26).pack(side=tk.LEFT)
+        psk = tk.Entry(row, width=40)
+        psk.insert(0, ", ".join(c.get("perplexity", {}).get("skills") or [])); psk.pack(side=tk.LEFT)
+        row = tk.Frame(f, bg=BG); row.pack(anchor="w", pady=1)
+        _label(row, "Perplexity connector IDs", 9, width=26).pack(side=tk.LEFT)
+        pcx = tk.Entry(row, width=40)
+        pcx.insert(0, ", ".join((x.get("id") or "") for x in c.get("perplexity", {}).get("connectors") or []))
+        pcx.pack(side=tk.LEFT)
+        _label(row, "every call asks first", 8, fg=MUTED).pack(side=tk.LEFT, padx=(8, 0))
 
         _section(f, "Google web app connector (Sheets & Docs)", "Your Apps Script web app. The token must match SHARED_TOKEN in the script.")
         row = tk.Frame(f, bg=BG); row.pack(anchor="w")
@@ -926,8 +936,16 @@ class SettingsWindow:
             c.setdefault("calendar", {})["ics_urls"] = [l.strip() for l in cal.get("1.0", "end").splitlines() if l.strip()]
             for sec, e in keys.items():
                 c.setdefault(sec, {})["api_key"] = e.get().strip()
-            c.setdefault("perplexity", {})["preset"] = pset.get().strip() or "low"
-            c.setdefault("perplexity", {})["model"] = pmod.get().strip()
+            pc = c.setdefault("perplexity", {})
+            pc["preset"] = pset.get().strip() or "low"
+            pc["model"] = pmod.get().strip()
+            pc["skills"] = [s.strip() for s in psk.get().split(",") if s.strip()]
+            # Merge by id so fields typed straight into config.json (labels,
+            # allowlists) survive editing the ID list here.
+            wanted = [s.strip() for s in pcx.get().split(",") if s.strip()]
+            existing = pc.get("connectors") or []
+            pc["connectors"] = [next((x for x in existing if (x.get("id") or "").strip() == wid), None)
+                                 or {"id": wid, "label": wid} for wid in wanted]
             c.setdefault("web_app", {}).update(url=url.get().strip(), token=tok.get().strip())
         self.collectors.append(collect)
 

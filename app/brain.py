@@ -21,6 +21,7 @@ All providers share one interface:
 import datetime
 import json as _json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -37,6 +38,10 @@ from tools import enabled_schemas, execute_tool
 import threading as _threading
 CANCEL = _threading.Event()
 _ACTIVE = {"resp": None}
+
+# Set by the GUI (like tools.CONFIRM): approvals for Perplexity connector/MCP
+# calls route through it. None (headless scheduler) means requests are DENIED.
+CONFIRM = None
 
 
 class Cancelled(Exception):
@@ -380,41 +385,211 @@ def _perplexity_client(key):
     return Perplexity(api_key=key, max_retries=0)
 
 
-def _perplexity_call(input_items, cfg, instructions):
+def _perplexity_skills(cfg):
+    """Valerie skills chosen by name in cfg['perplexity']['skills'], sent as
+    Agent API inline skills. Only the markdown instructions travel - local
+    scripts, files and plugins never leave the machine. Returns (skills,
+    error): a non-empty error means the config needs fixing."""
+    names = cfg.get("perplexity", {}).get("skills") or []
+    if not names:
+        return [], None
+    if len(set(names)) > 16:
+        return [], "Perplexity carries at most 16 skills per request - trim the 'skills' list."
+    import skills as skills_mod
+    try:
+        have = skills_mod.load_skills()
+    except Exception:  # a broken skills folder shouldn't break the brain
+        have = {}
+    out, seen, seen_safe = [], set(), {}
+    for name in names:
+        if name in seen:
+            continue
+        seen.add(name)
+        sk = have.get(name)
+        if sk is None:
+            return [], f"Perplexity skill '{name}' doesn't exist in Valerie's skills folder."
+        body = sk.get("prompt") or ""
+        if len(body.encode("utf-8")) > 65536:
+            return [], f"Perplexity skill '{name}' is too long to send (limit 65536 bytes)."
+        safe = re.sub(r"[^a-z0-9-]+", "-", name.lower()).strip("-")[:64] or "skill"
+        if safe in seen_safe:
+            return [], (f"Perplexity skills '{seen_safe[safe]}' and '{name}' normalize to the "
+                        f"same name '{safe}' - rename one of them.")
+        seen_safe[safe] = name
+        desc = (sk.get("description") or f"Valerie's '{name}' skill.")
+        desc = desc.encode("utf-8")[:1024].decode("utf-8", "ignore")
+        out.append({"type": "inline", "name": safe, "description": desc,
+                    "instructions": body})
+    return out, None
+
+
+def _reject_non_public_https(url):
+    """None when the URL is https with a non-private-looking target, else a
+    short reason. String checks can't prove cloud reachability - this only
+    refuses obvious private/localhost targets."""
+    from urllib.parse import urlparse
+    import ipaddress
+    try:
+        u = urlparse(url)
+        host = (u.hostname or "").lower()
+    except ValueError:  # e.g. a malformed bracketed IPv6 URL
+        return "needs a public HTTPS URL (private/localhost targets are refused)"
+    ok = (u.scheme == "https" and bool(host) and host != "localhost"
+          and not host.endswith((".local", ".lan", ".home")))
+    if ok:
+        try:
+            ip = ipaddress.ip_address(host)
+            ok = not (ip.is_private or ip.is_loopback or ip.is_link_local
+                      or ip.is_reserved or ip.is_multicast)
+        except ValueError:  # a hostname, not an IP literal
+            pass
+    return None if ok else "needs a public HTTPS URL (private/localhost targets are refused)"
+
+
+def _perplexity_extra_tools(cfg):
+    """Opt-in tool sharing: Perplexity Project connectors by ID, and selected
+    remote MCP servers from Valerie's config. Both go out with
+    require_approval 'always' - the agent may propose calls, the owner decides
+    (headless runs deny). Returns (tools, error)."""
+    p = cfg.get("perplexity", {})
+    out = []
+    for c in p.get("connectors") or []:
+        cid = (c.get("id") or "").strip()
+        if not cid:
+            return [], "Perplexity connector entries need an 'id' from the console.perplexity.ai Project connectors page."
+        entry = {"type": "connector", "id": cid,
+                 "server_label": (c.get("label") or cid), "require_approval": "always"}
+        if c.get("allowed_tools"):  # exact-name allowlist, per the API reference
+            entry["allowed_tools"] = list(c["allowed_tools"])
+        out.append(entry)
+    for name in p.get("mcp") or []:
+        server = next((s for s in cfg.get("mcp_servers") or [] if s.get("name") == name), None)
+        if server is None:
+            return [], f"Perplexity MCP server '{name}' isn't in Valerie's mcp_servers."
+        if not server.get("enabled", True):
+            continue  # off in Valerie stays off for Perplexity
+        bad = _reject_non_public_https((server.get("url") or "").strip())
+        if bad:
+            return [], f"Perplexity MCP server '{name}' {bad}."
+        entry = {"type": "mcp", "server_label": name, "server_url": server["url"].strip(),
+                 "require_approval": "always"}
+        if server.get("allow_tools"):
+            entry["allowed_tools"] = list(server["allow_tools"])
+        headers = dict(server.get("headers") or {})
+        for h, path in (server.get("secret_headers") or {}).items():
+            try:
+                with open(os.path.expanduser(path), encoding="utf-8") as f:
+                    headers[h] = f.read().strip()   # read at call time; never logged
+            except OSError:
+                return [], f"Perplexity MCP server '{name}': can't read the secret file for header '{h}'."
+        if headers:
+            entry["headers"] = headers
+        out.append(entry)
+    return out, None
+
+
+def _perplexity_call(input_items, cfg, instructions, confirm=None, update_chat=None,
+                     previous_response_id=None):
     """Shared core for the Perplexity brain and the web_answer tool: key
-    check, request build (preset or direct model), sanitized error mapping,
-    and the answer plus its cited sources. Returns the final text - errors
-    come back as friendly strings, never exceptions."""
+    check, request build (preset or direct model, plus opt-in shared skills
+    and connector/MCP tools), the per-call approval loop for those tools,
+    sanitized error mapping, and the answer plus its cited sources.
+    Returns (text, resp_id); errors come back as friendly strings with a
+    None id, never exceptions."""
     try:
         import perplexity as _pplx
     except ImportError:
-        return "The 'perplexity' package isn't installed in Valerie's venv (it needs Python 3.10+)."
+        return "The 'perplexity' package isn't installed in Valerie's venv (it needs Python 3.10+).", None
     key = os.environ.get("PERPLEXITY_API_KEY", "")
     if not key:
         return ("No Perplexity API key found. Create one at "
                 "https://console.perplexity.ai and export it as "
-                "PERPLEXITY_API_KEY in your terminal.")
+                "PERPLEXITY_API_KEY in your terminal.", None)
 
     p = cfg.get("perplexity", {})
+    shared_skills, err = _perplexity_skills(cfg)
+    if err:
+        return err, None
+    extra, err = _perplexity_extra_tools(cfg)
+    if err:
+        return err, None
     model = (p.get("model") or "").strip()
     preset = (p.get("preset") or "low").strip() or "low"
+
     kwargs = {"input": input_items, "instructions": instructions}
+    if previous_response_id:
+        kwargs["previous_response_id"] = previous_response_id
     if model:
         # Direct model: web grounding is the point, so always offer search.
+        # Explicit tools replace the bundled set, so web_search stays first.
         kwargs["model"] = model
-        kwargs["tools"] = [{"type": "web_search"}]
+        kwargs["tools"] = [{"type": "web_search"}] + extra
         if model.startswith("anthropic/"):
             # Documented requirement: Anthropic models reject a request
             # without max_output_tokens.
             kwargs["max_output_tokens"] = int(p.get("max_output_tokens", 8192))
+        kwargs["max_steps"] = int(p.get("max_steps") or 12)  # tool calls + answer
     else:
         kwargs["preset"] = preset
+        if extra:
+            kwargs["tools"] = [{"type": "web_search"}] + extra
+        if extra or shared_skills:
+            kwargs["max_steps"] = int(p.get("max_steps") or 12)
+        elif p.get("max_steps"):
+            kwargs["max_steps"] = int(p["max_steps"])
+    if shared_skills:
+        kwargs["skills"] = shared_skills
 
     try:
         resp = _perplexity_client(key).responses.create(**kwargs)
+        # Connector/MCP calls need the owner's decision (they ship with
+        # require_approval 'always'): answer each request, then continue.
+        # MAX_TOOL_TURNS bounds the decision ROUNDS, not the requests.
+        rounds = 0
+        while True:
+            pending = [o for o in (getattr(resp, "output", None) or [])
+                       if getattr(o, "type", None) == "mcp_approval_request"]
+            if not pending:
+                break
+            if rounds >= MAX_TOOL_TURNS:
+                return ("Too many approval rounds for one question - try again with "
+                        "fewer shared tools.", None)
+            rounds += 1
+            decisions = []
+            for req in pending:
+                approved = False
+                if confirm is not None:
+                    args_txt = getattr(req, "arguments", "") or ""
+                    if not isinstance(args_txt, str):
+                        args_txt = _json.dumps(args_txt)
+                    # The full action, never truncated - hidden arguments are
+                    # worse than long ones. (Auth headers aren't part of it.)
+                    approved = confirm("Perplexity tool approval",
+                                        (f"Allow the Perplexity agent to run '{getattr(req, 'name', '?')}' "
+                                         f"on '{getattr(req, 'server_label', '?')}'?\n\n{args_txt}"))
+                d = {"type": "mcp_approval_response", "approval_request_id": getattr(req, "id", ""),
+                     "approve": approved}
+                if not approved:
+                    d["reason"] = ("The owner didn't approve this call." if confirm is not None
+                                    else "No one is available to approve this call.")
+                decisions.append(d)
+            # The continuation keeps the run's configuration: instructions,
+            # tools and model settings are resent unchanged.
+            cont = {"input": decisions, "previous_response_id": resp.id,
+                    "instructions": instructions}
+            if model:
+                cont["model"] = model
+            else:
+                cont["preset"] = preset
+            for k in ("tools", "max_steps", "max_output_tokens"):
+                if k in kwargs:
+                    cont[k] = kwargs[k]
+            if shared_skills:
+                cont["skills"] = shared_skills
+            resp = _perplexity_client(key).responses.create(**cont)
     except _pplx.AuthenticationError:
         return ("Perplexity rejected the API key. Check PERPLEXITY_API_KEY "
-                "(rotate it at console.perplexity.ai if it has been exposed).")
+                "(rotate it at console.perplexity.ai if it has been exposed).", None)
     except _pplx.RateLimitError as e:
         wait = ""
         try:
@@ -423,18 +598,20 @@ def _perplexity_call(input_items, cfg, instructions):
                 wait = f" in about {int(ra)} seconds"
         except Exception:  # headers unavailable - fall back to a generic hint
             pass
-        return f"Perplexity is rate-limiting requests right now - try again{wait or ' in a minute'}."
+        return f"Perplexity is rate-limiting requests right now - try again{wait or ' in a minute'}.", None
     except _pplx.APITimeoutError:
-        return "Perplexity took too long to answer. Try a narrower question."
+        return "Perplexity took too long to answer. Try a narrower question.", None
     except _pplx.APIConnectionError:
-        return "Couldn't reach Perplexity - check the internet connection."
+        return "Couldn't reach Perplexity - check the internet connection.", None
     except _pplx.APIStatusError as e:
-        return f"Perplexity returned HTTP {e.status_code}."
+        return f"Perplexity returned HTTP {e.status_code}.", None
     if getattr(resp, "status", None) == "failed":
-        return "Perplexity couldn't complete that request."
+        return "Perplexity couldn't complete that request.", None
     text = (getattr(resp, "output_text", "") or "").strip()
     if not text:
-        return "No response."
+        return "No response.", None
+    # A reusable conversation id only after a fully completed run.
+    resp_id = getattr(resp, "id", None) if getattr(resp, "status", None) == "completed" else None
     # Sources the answer actually cites (url_citation annotations on the
     # text) - not every page the search touched.
     sources = []
@@ -448,23 +625,31 @@ def _perplexity_call(input_items, cfg, instructions):
                     sources.append(url)
     if sources:
         text += "\n\nSources:\n" + "\n".join("- " + u for u in sources[:5])
-    return text
+    return text, resp_id
 
 
-def perplexity_web_answer(question, cfg):
+def perplexity_web_answer(question, cfg, confirm=None):
     """web_answer tool: one web-grounded answer for the local brain.
 
     Called from tools.execute_tool when the owner has enabled the tool in
     Settings (pay-per-use). The answer returns with its cited sources so
-    the calling model can relay it."""
+    the calling model can relay it. Shared skills/connectors from the
+    perplexity config apply here too, with per-call approval."""
     instructions = ("Answer the question for a voice assistant: plain text, "
                     "concise, no markdown tables. Search the web, ground the "
                     "answer in what you find and keep the inline citations.")
-    return _perplexity_call([{"type": "message", "role": "user", "content": question}],
-                            cfg, instructions)
+    text, _ = _perplexity_call([{"type": "message", "role": "user", "content": question}],
+                               cfg, instructions, confirm=confirm)
+    return text
 
 
-def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
+def _history_snapshot(history, cfg):
+    """The raw turns the brain would replay, as comparable tuples."""
+    turns = cfg.get("assistant", {}).get("history_turns", 6)
+    return [(m.get("role"), m.get("content")) for m in (history or [])[-turns * 2:]]
+
+
+def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None, conv_state=None):
     """Web-grounded answers through the Perplexity Agent API.
 
     The research loop (search, fetch, reason) runs on Perplexity's side,
@@ -475,13 +660,26 @@ def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
     The API key is read only from the PERPLEXITY_API_KEY environment
     variable (create one at console.perplexity.ai); it is never stored
     in config.json or logged.
-    """
-    # Multi-turn: replay the recent turns as input message items, then the
-    # new question (same shape the API itself documents for replay).
-    input_items = [{"type": "message", "role": m["role"], "content": m["content"]}
-                   for m in _history_messages(history, cfg)]
-    input_items.append({"type": "message", "role": "user",
-                        "content": build_user_turn(cfg, prompt, ecosystem)})
+
+    conv_state is a dict the CALLER owns (the GUI keeps one per focus).
+    When the same conversation continues, the prior response id is reused
+    (previous_response_id) so recent turns don't need replaying; a failed
+    run or a cleared history falls back to full replay automatically."""
+    snap = _history_snapshot(history, cfg)
+    prev_id = None
+    if (conv_state is not None and conv_state.get("resp_id") and conv_state.get("tail")
+            and snap == conv_state["tail"]):
+        # Same conversation continuing - the server already has the context.
+        prev_id = conv_state["resp_id"]
+        input_items = [{"type": "message", "role": "user",
+                        "content": build_user_turn(cfg, prompt, ecosystem)}]
+    else:
+        # Replay the recent turns as input message items, then the new
+        # question (same shape the API itself documents for replay).
+        input_items = [{"type": "message", "role": m["role"], "content": m["content"]}
+                       for m in _history_messages(history, cfg)]
+        input_items.append({"type": "message", "role": "user",
+                            "content": build_user_turn(cfg, prompt, ecosystem)})
     # Request-level instructions replace only the preset's system
     # prompt; its model, tools and limits stay.
     instructions = build_system_prompt(cfg) + (
@@ -490,7 +688,15 @@ def _run_perplexity(prompt, cfg, update_chat, history, ecosystem=None):
         "keeping the inline source citations.")
     if update_chat:
         update_chat("Valerie", "(searching the web...)", speak=False)
-    return _perplexity_call(input_items, cfg, instructions)
+    text, resp_id = _perplexity_call(input_items, cfg, instructions, confirm=CONFIRM,
+                                     update_chat=update_chat, previous_response_id=prev_id)
+    if conv_state is not None:
+        if resp_id:
+            conv_state["resp_id"] = resp_id
+            conv_state["tail"] = snap + [("user", prompt), ("assistant", text)]
+        else:
+            conv_state.clear()   # failed run - the next turn replays in full
+    return text
 
 
 def _run_omniroute(prompt, cfg, update_chat, history, ecosystem=None):
@@ -544,8 +750,11 @@ PROVIDERS = {"anthropic": _run_anthropic, "openai": _run_openai, "gemini": _run_
             "omniroute": _run_omniroute, "perplexity": _run_perplexity}
 
 
-def run_agent_loop(provider, prompt, cfg=None, update_chat=None, history=None, ecosystem=None):
-    """Entry point used by both the GUI and the headless scheduler."""
+def run_agent_loop(provider, prompt, cfg=None, update_chat=None, history=None, ecosystem=None,
+                  conv_state=None):
+    """Entry point used by both the GUI and the headless scheduler.
+    conv_state (Perplexity conversation memory) is caller-owned and only
+    the perplexity provider uses it."""
     cfg = cfg or cfg_mod.load_config()
     provider = provider or cfg.get("active_provider", "ollama")
     try:
@@ -554,6 +763,8 @@ def run_agent_loop(provider, prompt, cfg=None, update_chat=None, history=None, e
         fn = PROVIDERS.get(provider)
         if not fn:
             return f"Unknown provider '{provider}'."
+        if provider == "perplexity":
+            return fn(prompt, cfg, update_chat, history, ecosystem, conv_state)
         return fn(prompt, cfg, update_chat, history, ecosystem)
     except Exception as e:  # noqa: BLE001 - never let a brain error crash the GUI
         return f"{provider} brain error: {e}"

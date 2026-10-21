@@ -173,6 +173,9 @@ class ValerieAssistantGUI:
         self.history = []                      # kept for the "both" focus
         self.histories = {wid: [] for wid in ws.all_ids(self.config)}
         self.histories["both"] = self.history
+        # Per-focus conversation memory for brains that support it (Perplexity
+        # previous_response_id). Cleared together with the history.
+        self.brain_state = {}
         self.focus = self.config.get("focus", "both")
         if self.focus != "both" and self.focus not in ws.all_ids(self.config):
             self.focus = "both"
@@ -187,6 +190,8 @@ class ValerieAssistantGUI:
 
         import tools as tools_mod
         tools_mod.CONFIRM = self.confirm_threadsafe
+        import brain as brain_mod
+        brain_mod.CONFIRM = self.confirm_threadsafe
 
         from brain import warm_up
         threading.Thread(target=warm_up, args=(self.config,), daemon=True).start()
@@ -1287,6 +1292,7 @@ class ValerieAssistantGUI:
             self._in_background(lambda: self._run_local_tool(tool, args), show)
         elif cmd == "clear":
             self.histories[self.focus].clear()
+            self.brain_state.pop(self.focus, None)
             self.update_chat(self.bot_name, f"Conversation cleared ({self.focus} focus).")
         elif cmd == "remember":
             if rest.strip():
@@ -1314,7 +1320,8 @@ class ValerieAssistantGUI:
 
         def work():
             return run_agent_loop(provider, prompt, self.config, update_chat=threadsafe_update,
-                                  history=hist, ecosystem=None if focus == "both" else focus)
+                                  history=hist, ecosystem=None if focus == "both" else focus,
+                                  conv_state=self.brain_state.setdefault(focus, {}))
 
         def done(response):
             if response == "__CANCELLED__":
