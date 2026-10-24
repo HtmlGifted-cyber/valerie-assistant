@@ -144,7 +144,7 @@ TOOL_SCHEMAS = [
      "parameters": _obj()},
     {"name": "free_job",
      "description": "Start a free background job on a personal project. The owner must approve: in the desktop window by clicking, or in phone chat by typing the approval code you give them. Relay the code message exactly.",
-     "parameters": _obj({"project": {"type": "string", "description": "Project name inside ~/Projects."},
+     "parameters": _obj({"project": {"type": "string", "description": "Project name inside ~/Documents/Projects."},
                          "task": {"type": "string", "description": "The task instructions for the free model."}}, ["project", "task"])},
     {"name": "free_job_result",
      "description": "Get the recent log output and status of the latest free job.",

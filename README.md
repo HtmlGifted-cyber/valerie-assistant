@@ -88,7 +88,7 @@ Self-test with fake local servers: `python3 tests/test_edge_mcp.py`.
 
 ## Optional: hand a coding task to a free model
 
-If you have the [`free-job`](docs/OMNIROUTE.md) helper (runs a coding agent on free models through OmniRoute), Valerie can start one for a project folder in `~/Projects` after you approve it (`free_job`) and report the result (`free_job_result`). It only accepts folders inside `~/Projects`, runs one job at a time, and refuses everything else. In the desktop window you approve with a dialog; in the phone/web chat Valerie shows what she will run and a one-time 6-digit code, and only your own typed `approve <code>` message (handled by the chat server, never by the AI model) starts it. Codes expire after 10 minutes and are dropped after three wrong tries; `cancel free job` drops a waiting request.
+If you have the [`free-job`](docs/OMNIROUTE.md) helper (runs a coding agent on free models through OmniRoute), Valerie can start one for a project folder in `~/Documents/Projects` after you approve it (`free_job`) and report the result (`free_job_result`). It only accepts folders inside `~/Documents/Projects`, runs one job at a time, and refuses everything else. In the desktop window you approve with a dialog; in the phone/web chat Valerie shows what she will run and a one-time 6-digit code, and only your own typed `approve <code>` message (handled by the chat server, never by the AI model) starts it. Codes expire after 10 minutes and are dropped after three wrong tries; `cancel free job` drops a waiting request.
 
 ## Help make her better
 

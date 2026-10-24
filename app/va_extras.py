@@ -188,7 +188,7 @@ _PENDING_MINUTES = 10
 
 def _free_job_check(project, task):
     """Shared safety checks. Returns the cleaned project name; raises ExtraError otherwise."""
-    projects_dir = os.path.join(HOME, "Projects")
+    projects_dir = os.path.join(HOME, "Documents", "Projects")
     if not os.path.isdir(projects_dir):
         raise ExtraError("Projects directory does not exist.")
     valid = sorted(d for d in os.listdir(projects_dir)

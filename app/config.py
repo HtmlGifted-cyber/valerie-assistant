@@ -135,6 +135,7 @@ DEFAULT_CONFIG = {
     "talk": {"wake_word": True, "follow_up_seconds": 60},
     "calendar": {"ics_urls": []},
     "web_app": {"url": "", "token": ""},
+    "library": {"extra_zim_dir": "/media/wwm/16D4253ED425218B/Offline-Library/"},
 
     # "auto" = server when that workspace's mailbox has a password, else Thunderbird.
     "mail_source": "auto",

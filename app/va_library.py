@@ -311,7 +311,12 @@ def _port_up():
 
 
 def _zim_files():
-    return sorted(glob.glob(os.path.join(ZIM_DIR, "*.zim")))
+    zims = set(glob.glob(os.path.join(ZIM_DIR, "*.zim")))
+    extra_dir = cfg_mod.CONFIG.get("library", {}).get("extra_zim_dir", "/media/wwm/16D4253ED425218B/Offline-Library")
+    if extra_dir and os.path.isdir(extra_dir):
+        for z in glob.glob(os.path.join(extra_dir, "*.zim")):
+            zims.add(z)
+    return sorted(list(zims))
 
 
 def start_library():

@@ -345,6 +345,20 @@ class ValerieAssistantGUI:
     def _voice_state(self, text):
         self.voice_status.config(text=text)
 
+    def _is_cancel_command(self, text):
+        clean_text = re.sub(r"[^\w\s]", "", text).lower().strip()
+        words = clean_text.split()
+        if not words:
+            return False
+        # (a) starts with wake word (hey/ok/okay optional, then valerie/valery/valeri/valarie/val) AND CANCEL_WORDS matches
+        wake_match = re.match(r"^(?:(?:hey|ok|okay)\s+)?(?:valerie|valery|valeri|valarie|val)\b", clean_text)
+        if wake_match and self.CANCEL_WORDS.match(clean_text):
+            return True
+        # (b) 3 words or fewer AND CANCEL_WORDS matches
+        if len(words) <= 3 and self.CANCEL_WORDS.match(clean_text):
+            return True
+        return False
+
     def _talk_loop(self):
         import time
         size = self.config.get("speech_input", {}).get("model_size", "tiny")
@@ -370,7 +384,7 @@ class ValerieAssistantGUI:
             if not text or text.startswith("[speech recognition error"):
                 continue
             if self.busy:   # while she's thinking, only "stop"/"cancel" matters
-                if self.CANCEL_WORDS.match(text):
+                if self._is_cancel_command(text):
                     self.root.after(0, self.cancel_current)
                 continue
             if self._is_noise_phrase(text):
@@ -447,9 +461,11 @@ class ValerieAssistantGUI:
         self._in_background(work, done)
 
     def _talk_heard(self, text):
-        # "cancel"/"stop" during the send countdown drops what was heard
-        if self._pending_talk is not None and self.CANCEL_WORDS.match(text):
-            self.cancel_current()
+        if self._pending_talk is not None:
+            if self._is_cancel_command(text):
+                self.cancel_current()
+            else:
+                self._voice_state(f'Still sending your last message - say "cancel" to drop it')
             return
         self.voice_you.config(text=f"You: {text}")
         tcfg = self.config.get("talk", {})

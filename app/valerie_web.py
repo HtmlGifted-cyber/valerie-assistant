@@ -28,7 +28,7 @@ from brain import run_agent_loop  # noqa: E402
 
 PORT = 8790
 FOCUSES = ("author", "coaching", "both")
-APK = os.path.expanduser("~/Projects/local-app-wrapper/out/valerie.apk")
+APK = os.path.expanduser("~/Documents/Projects/local-app-wrapper/out/valerie.apk")
 SESSION_DAYS = 3650  # sessions last until "Log out" is pressed (and survive server restarts)
 SESSIONS_FILE = os.path.expanduser("~/.config/valerie-assistant/web_sessions.json")
 sessions = {}  # token -> {"expires": ts, "focus": f, "histories": {focus: [...]}}

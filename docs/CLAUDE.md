@@ -18,7 +18,7 @@ Paste this into Claude Code in a terminal on the computer where Valerie should l
 Install and set up Valerie Assistant from https://github.com/HtmlGifted-cyber/valerie-assistant on this
 Debian/Ubuntu computer.
 
-1. Clone the repo into ~/Projects/valerie-assistant and read README.md, docs/OMNIROUTE.md and docs/CLAUDE.md.
+1. Clone the repo into ~/Documents/Projects/valerie-assistant and read README.md, docs/OMNIROUTE.md and docs/CLAUDE.md.
 2. Check requirements (python3 >= 3.8, about 3 GB free disk, 6 GB RAM recommended) and tell me what's missing.
 3. Build the package with packaging/build.sh. Show me the apt install command so I run the sudo step myself.
 4. If Ollama isn't installed, show me the official install command and then pull qwen2.5:3b.
