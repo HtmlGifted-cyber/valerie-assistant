@@ -203,6 +203,7 @@ class ValerieAssistantGUI:
         self.talk_mode = False
         self.talk_stop = threading.Event()
         self.paused = False
+        self._mic_muted = False   # mic closed from request capture until the spoken reply is done
         self._job_seq = 0
         self._cancelled_upto = 0
         self._pending_talk = None
@@ -304,6 +305,11 @@ class ValerieAssistantGUI:
     def is_speaking(self):
         return bool(self.speech_proc and self.speech_proc.poll() is None)
 
+    def _mic_off(self):
+        """Mic stays closed while she's thinking/speaking (or paused), so TV
+        and room noise can't be captured, interrupt her and start a new request."""
+        return self._mic_muted or self.is_speaking() or self.paused
+
     # -------------------------------------------------------- Talk mode
 
     EXIT_PHRASES = ("stop listening", "talk mode off", "stop talk mode", "goodbye valerie", "show the chat", "show chat")
@@ -329,6 +335,7 @@ class ValerieAssistantGUI:
 
     def stop_talk_mode(self):
         self.talk_mode = False
+        self._mic_muted = False
         self.talk_stop.set()
         self.voice_panel.pack_forget()
         self.input_row.pack(fill=tk.X, padx=16, before=self.voice_row)
@@ -363,19 +370,20 @@ class ValerieAssistantGUI:
         import time
         size = self.config.get("speech_input", {}).get("model_size", "tiny")
         while self.talk_mode and not self.talk_stop.is_set():
-            # never listen while she's talking (she'd hear herself) or paused
-            if self.is_speaking() or self.paused:
+            # never listen while she's thinking or talking (she'd hear herself,
+            # or background speech would interrupt her and start a new request)
+            if self._mic_off():
                 time.sleep(0.3)
                 continue
             time.sleep(0.4)  # let the room settle after she stops speaking
-            if self.is_speaking() or self.paused:
+            if self._mic_off():
                 continue
             if not self.busy:
                 self.root.after(0, lambda: self._voice_state("Listening... (just talk)"))
             audio = listen.listen_utterance(
                 self.talk_stop, on_state=lambda t: self.root.after(0, lambda: self._voice_state(t)),
-                abort_if=self.is_speaking)
-            if self.is_speaking():
+                abort_if=self._mic_off)
+            if self._mic_off():
                 continue
             if audio is None or not self.talk_mode:
                 continue
@@ -487,6 +495,7 @@ class ValerieAssistantGUI:
             self._voice_state("Listening...")
             return
         # 3-second window to cancel a misheard phrase before anything runs
+        self._mic_muted = True   # close the mic until the reply has been spoken
         self._pending_talk = text
         self._countdown(3, text)
 
@@ -1458,6 +1467,7 @@ class ValerieAssistantGUI:
         """STOP button / Esc / 'Valerie, stop': abandon the running job."""
         if self._pending_talk is not None:
             self._pending_talk = None
+            self._mic_muted = False
             self._voice_state("Cancelled - listening again")
             if not quiet:
                 self.update_chat(self.bot_name, "(Cancelled - I didn't send that.)", speak=False)
@@ -1482,6 +1492,8 @@ class ValerieAssistantGUI:
 
     def _set_busy(self, busy):
         self.busy = busy
+        if not busy:
+            self._mic_muted = False   # thinking done - is_speaking() covers the reply itself
         if busy:
             self.send_btn.config(state=tk.NORMAL, text="STOP", bg="#b23b3b", activebackground="#8f2f2f",
                                  command=self.cancel_current)
@@ -1882,6 +1894,8 @@ class ValerieAssistantGUI:
         if is_bot and getattr(self, "talk_mode", False) and not message.startswith(("...", "(using")):
             self.voice_bot.config(text=f"Valerie: {message}")
             self._voice_state("Speaking...")
+        if is_bot and not message.startswith(("...", "(using")):
+            self._mic_muted = False  # reply delivered - is_speaking() guards while it's read aloud
         if is_bot and speak:
             self.speak(message)
 
