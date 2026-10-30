@@ -30,8 +30,8 @@ class TestEmailConnect(unittest.TestCase):
                 "imap_port": 993,
                 "smtp_host": "smtp.gmail.com",
                 "smtp_port": 465,
-                "address": "YOUR_EMAIL@gmail.com",
-                "app_password": "YOUR_APP_PASSWORD"
+                "address": "ENTER_YOUR_EMAIL_ADDRESS_HERE",
+                "app_password": "ENTER_YOUR_APP_PASSWORD_HERE"
             }, tf)
             tf_name = tf.name
 
@@ -43,8 +43,8 @@ class TestEmailConnect(unittest.TestCase):
                 "imap_port": 993,
                 "smtp_host": "smtp.gmail.com",
                 "smtp_port": 465,
-                "address": "YOUR_EMAIL@gmail.com",
-                "app_password": "YOUR_APP_PASSWORD"
+                "address": "ENTER_YOUR_EMAIL_ADDRESS_HERE",
+                "app_password": "ENTER_YOUR_APP_PASSWORD_HERE"
             }))):
                 with self.assertRaises(EmailError) as ctx:
                     load_email_config()

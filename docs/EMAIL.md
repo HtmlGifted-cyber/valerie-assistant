@@ -12,7 +12,7 @@ Create the configuration file at `~/.config/valerie-assistant/email.json`:
   "imap_port": 993,
   "smtp_host": "smtp.gmail.com",
   "smtp_port": 465,
-  "address": "your-email@gmail.com",
+  "address": "ENTER_YOUR_EMAIL_ADDRESS_HERE",
   "app_password": "your-app-password"
 }
 ```
