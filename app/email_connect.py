@@ -53,7 +53,7 @@ def list_unread(n=10):
     try:
         mail = imaplib.IMAP4_SSL(host, port)
         mail.login(address, password)
-        mail.select("INBOX")
+        mail.select("INBOX", readonly=True)  # reading never changes the mailbox
 
         status, messages = mail.search(None, 'UNSEEN')
         if status != 'OK':
